@@ -160,8 +160,24 @@ const App: React.FC = () => {
       const wallet = state.wallets.find(w => w.id === newT.walletId);
       const transaction: Transaction = { ...newT, id, date: paymentDate, categoryName: category?.name, walletName: wallet?.name };
       newTransactions = [...state.transactions, transaction];
-      updatedWallets = state.wallets.map(w => w.id === transaction.walletId ? { ...w, balance: transaction.type === CategoryType.EXPENSE ? w.balance - transaction.amount : w.balance + transaction.amount } : w);
-      syncToSheet(SHEET_URL, { action: 'add_transaction', transaction, newBalance: updatedWallets.find(w => w.id === transaction.walletId)?.balance });
+      
+      // Nếu là trả nợ (category 10) và có toWalletId (ví nợ)
+      if (newT.categoryId === '10' && newT.toWalletId) {
+        updatedWallets = state.wallets.map(w => {
+          if (w.id === transaction.walletId) return { ...w, balance: w.balance - transaction.amount }; // Trừ ví nguồn
+          if (w.id === newT.toWalletId) return { ...w, balance: w.balance + transaction.amount }; // Giảm nợ (tăng balance âm lên 0)
+          return w;
+        });
+        syncToSheet(SHEET_URL, { action: 'add_transaction', transaction, newBalance: updatedWallets.find(w => w.id === transaction.walletId)?.balance });
+        // Đồng bộ cả ví nợ
+        const debtW = updatedWallets.find(w => w.id === newT.toWalletId);
+        if (debtW) {
+          syncToSheet(SHEET_URL, { action: 'update_wallet_balance', walletId: debtW.id, balance: debtW.balance });
+        }
+      } else {
+        updatedWallets = state.wallets.map(w => w.id === transaction.walletId ? { ...w, balance: transaction.type === CategoryType.EXPENSE ? w.balance - transaction.amount : w.balance + transaction.amount } : w);
+        syncToSheet(SHEET_URL, { action: 'add_transaction', transaction, newBalance: updatedWallets.find(w => w.id === transaction.walletId)?.balance });
+      }
     }
     setState(prev => ({ ...prev, transactions: newTransactions, wallets: updatedWallets }));
     setActiveTab('dashboard');
@@ -175,7 +191,16 @@ const App: React.FC = () => {
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 selection:bg-indigo-100 pb-32 md:pb-8">
       {selectedDebtWallet && (
         <PaymentModal debtWallet={selectedDebtWallet} wallets={state.wallets} onClose={() => setSelectedDebtWallet(null)} onPay={(sw, amt) => {
-          addTransaction({ amount: amt, categoryId: '10', walletId: sw, note: `Trả nợ ${selectedDebtWallet.name}`, type: CategoryType.EXPENSE, date: new Date().toISOString(), icon: '💸' });
+          addTransaction({ 
+            amount: amt, 
+            categoryId: '10', 
+            walletId: sw, 
+            toWalletId: selectedDebtWallet.id, // Truyền thêm ID ví nợ để xử lý logic đồng thời
+            note: `Trả nợ ${selectedDebtWallet.name}`, 
+            type: CategoryType.EXPENSE, 
+            date: new Date().toISOString(), 
+            icon: '💸' 
+          });
           setSelectedDebtWallet(null);
         }} />
       )}
