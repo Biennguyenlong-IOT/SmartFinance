@@ -87,7 +87,12 @@ const App: React.FC = () => {
       wallets: currentState.wallets,
       categories: currentState.categories,
       favorites: currentState.favorites,
-      settingsPassword: currentState.settingsPassword
+      settingsPassword: currentState.settingsPassword,
+      transactions: currentState.transactions.map(t => ({
+        ...t,
+        categoryName: currentState.categories.find(c => c.id === t.categoryId)?.name || 'N/A',
+        walletName: currentState.wallets.find(w => w.id === t.walletId)?.name || 'N/A'
+      }))
     });
   };
 
@@ -260,17 +265,24 @@ const App: React.FC = () => {
                     <div className="space-y-4">
                       <input type="text" value={state.googleSheetUrl} onChange={(e) => setState(prev => ({ ...prev, googleSheetUrl: e.target.value }))} placeholder="URL Web App" className="w-full px-5 py-4 bg-white/10 border border-white/20 rounded-2xl text-sm font-bold placeholder:text-white/30 focus:bg-white/20 outline-none transition-all" />
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <button onClick={() => {
+                        <button onClick={async () => {
                           if (!state.googleSheetUrl) { alert("Vui lòng dán URL!"); return; }
                           setIsSyncing(true);
-                          syncToSheet(state.googleSheetUrl, {
+                          const success = await syncToSheet(state.googleSheetUrl, {
                             action: 'sync_all',
                             wallets: state.wallets,
                             categories: state.categories,
                             favorites: state.favorites,
                             settingsPassword: state.settingsPassword,
-                            transactions: state.transactions.map(t => ({ ...t, categoryName: state.categories.find(c => c.id === t.categoryId)?.name || 'N/A', walletName: state.wallets.find(w => w.id === t.walletId)?.name || 'N/A' }))
-                          }).then(s => { setIsSyncing(false); if(s) alert("Đã đồng bộ thành công!"); });
+                            transactions: state.transactions.map(t => ({ 
+                              ...t, 
+                              categoryName: state.categories.find(c => c.id === t.categoryId)?.name || 'N/A', 
+                              walletName: state.wallets.find(w => w.id === t.walletId)?.name || 'N/A',
+                              icon: t.icon || state.categories.find(c => c.id === t.categoryId)?.icon || '💰'
+                            }))
+                          });
+                          setIsSyncing(false); 
+                          if(success) alert("Đã đồng bộ toàn bộ dữ liệu thành công!");
                         }} disabled={isSyncing || isFetching} className="py-4 bg-white text-indigo-600 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg disabled:opacity-50">{isSyncing ? 'Đang gửi...' : 'Đẩy toàn bộ lên Sheet'}</button>
                         <button onClick={() => pullDataFromSheet(false)} disabled={isSyncing || isFetching} className="py-4 bg-indigo-500 text-white border border-indigo-400 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg disabled:opacity-50">{isFetching ? 'Đang tải...' : 'Tải toàn bộ từ Sheet'}</button>
                       </div>
