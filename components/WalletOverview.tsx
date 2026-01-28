@@ -11,61 +11,69 @@ interface Props {
 const isDebtWallet = (w: Wallet) => w.id.includes('debt') || w.name.toLowerCase().includes('nợ');
 
 export const WalletOverview: React.FC<Props> = ({ wallets, onDebtClick }) => {
-  // Tính tổng tài sản: Chỉ cộng các ví KHÔNG PHẢI là ví nợ
-  const totalAssets = wallets
-    .filter(w => !isDebtWallet(w))
-    .reduce((sum, w) => sum + w.balance, 0);
+  const assets = wallets.filter(w => !isDebtWallet(w));
+  const debts = wallets.filter(w => isDebtWallet(w));
+  
+  const totalAssets = assets.reduce((sum, w) => sum + w.balance, 0);
+  const totalDebts = debts.reduce((sum, w) => sum + Math.abs(w.balance), 0);
 
   return (
-    <div className="bg-white rounded-3xl p-8 shadow-sm border border-slate-100">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
-        <div>
-          <h2 className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-1">Tổng tài sản hiện có</h2>
-          <div className="flex items-baseline gap-2">
-            <span className="text-4xl font-black text-slate-900 tracking-tight">{formatCurrency(totalAssets)}</span>
-            <span className="text-xl font-bold text-slate-400">₫</span>
-          </div>
-        </div>
-        <div className="flex gap-2">
-           <div className="bg-indigo-50 text-indigo-600 px-4 py-2 rounded-2xl text-[11px] font-bold border border-indigo-100">
-            {wallets.length} Tài khoản
-          </div>
-        </div>
-      </div>
-      
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {wallets.map(wallet => {
-          const isDebt = isDebtWallet(wallet);
-          return (
-            <div 
-              key={wallet.id} 
-              onClick={() => isDebt ? onDebtClick(wallet) : null}
-              className={`group p-5 rounded-2xl border transition-all duration-300 ${
-                isDebt 
-                  ? 'bg-red-50/30 border-red-100 hover:bg-red-50 hover:border-red-200 cursor-pointer' 
-                  : 'bg-slate-50 border-slate-100 hover:bg-white hover:shadow-md hover:border-indigo-100'
-              }`}
-            >
-              <div className="flex flex-col gap-3">
-                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shadow-sm border transition-transform group-hover:scale-110 ${isDebt ? 'bg-white border-red-100' : 'bg-white border-slate-100'}`}>
-                  {wallet.icon}
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider truncate mb-0.5">{wallet.name}</p>
-                  <p className={`text-lg font-black truncate ${wallet.balance < 0 || isDebt ? 'text-red-600' : 'text-slate-800'}`}>
-                    {formatCurrency(wallet.balance)}<span className="text-xs ml-0.5 font-bold">₫</span>
-                  </p>
-                  {isDebt && wallet.balance < 0 && (
-                    <div className="mt-2 inline-flex items-center gap-1 text-[9px] text-red-500 font-black uppercase bg-red-100 px-2 py-0.5 rounded-full animate-pulse">
-                      <span>●</span> Trả ngay
-                    </div>
-                  )}
-                </div>
-              </div>
+    <div className="space-y-6">
+      <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-6">
+          <div className="space-y-1">
+            <h2 className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em]">Tài sản khả dụng</h2>
+            <div className="flex items-baseline gap-2">
+              <span className="text-5xl font-black text-slate-900 tracking-tighter">{formatCurrency(totalAssets)}</span>
+              <span className="text-2xl font-bold text-slate-300">₫</span>
             </div>
-          );
-        })}
+          </div>
+          {totalDebts > 0 && (
+            <div className="bg-rose-50 px-6 py-4 rounded-3xl border border-rose-100">
+              <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-1">Tổng nợ phải trả</p>
+              <p className="text-xl font-black text-rose-600">-{formatCurrency(totalDebts)}₫</p>
+            </div>
+          )}
+        </div>
+        
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {assets.map(wallet => (
+            <div key={wallet.id} className="p-5 bg-slate-50 border border-slate-100 rounded-2xl hover:bg-white hover:shadow-lg hover:border-indigo-100 transition-all group">
+              <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-2xl shadow-sm border border-slate-100 mb-3 group-hover:scale-110 transition-transform">
+                {wallet.icon}
+              </div>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">{wallet.name}</p>
+              <p className="text-lg font-black text-slate-800">{formatCurrency(wallet.balance)}<span className="text-[10px] ml-0.5">₫</span></p>
+            </div>
+          ))}
+        </div>
       </div>
+
+      {debts.length > 0 && (
+        <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100">
+          <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
+            <span className="w-2.5 h-2.5 bg-rose-500 rounded-full animate-pulse"></span> Danh sách khoản nợ
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {debts.map(wallet => (
+              <button 
+                key={wallet.id} 
+                onClick={() => onDebtClick(wallet)}
+                className="text-left p-5 bg-rose-50/30 border border-rose-100 rounded-2xl hover:bg-rose-50 hover:border-rose-300 transition-all group"
+              >
+                <div className="flex justify-between items-start mb-3">
+                  <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-2xl shadow-sm border border-rose-100 group-hover:rotate-12 transition-transform">
+                    {wallet.icon}
+                  </div>
+                  <span className="text-[10px] font-black text-rose-500 uppercase bg-white px-2 py-1 rounded-lg border border-rose-100">Trả ngay</span>
+                </div>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">{wallet.name}</p>
+                <p className="text-lg font-black text-rose-600">{formatCurrency(wallet.balance)}<span className="text-[10px] ml-0.5">₫</span></p>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
