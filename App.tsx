@@ -6,7 +6,7 @@ import { WalletOverview } from './components/WalletOverview';
 import { TransactionForm } from './components/TransactionForm';
 import { RecentTransactions } from './components/RecentTransactions';
 import { ExpenseCharts } from './components/ExpenseCharts';
-import { SmartInsights } from './components/SmartInsights';
+import { GreetingHeader } from './components/GreetingHeader';
 import { FavoriteManager } from './components/FavoriteManager';
 import { PaymentModal } from './components/PaymentModal';
 import { CategoryManager } from './components/CategoryManager';
@@ -128,7 +128,7 @@ const App: React.FC = () => {
     
     if (success) {
       alert("Đã đổi mật khẩu thành công! Hệ thống sẽ khóa để bạn đăng nhập bằng mật khẩu mới.");
-      setIsUnlocked(false); // Force re-login with new password
+      setIsUnlocked(false); 
       setShowPasswordChange(false);
       setNewPassword('');
       setConfirmPassword('');
@@ -227,7 +227,7 @@ const App: React.FC = () => {
       <main className="max-w-5xl mx-auto px-6 py-8">
         {activeTab === 'dashboard' && (
           <div className="space-y-10 animate-in fade-in duration-500">
-            <SmartInsights transactions={state.transactions} categories={state.categories} wallets={state.wallets} />
+            <GreetingHeader />
             <WalletOverview wallets={state.wallets} onDebtClick={setSelectedDebtWallet} />
             <ExpenseCharts transactions={state.transactions} categories={state.categories} />
             <RecentTransactions transactions={state.transactions} categories={state.categories} wallets={state.wallets} onViewAll={() => setActiveTab('history')} />
@@ -271,13 +271,11 @@ const App: React.FC = () => {
                        <h2 className="text-2xl font-black text-slate-800 leading-tight">Cấu hình hệ thống</h2>
                        <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Quản lý ví, danh mục và bảo mật</p>
                     </div>
-                    {/* Updated Lock Button: resetting isUnlocked will trigger the lock screen for this tab */}
                     <button onClick={() => { setIsUnlocked(false); setPasswordInput(''); }} className="px-5 py-2.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-xl text-xs font-black uppercase border border-rose-200 transition-all flex items-center gap-2">
                       <span>🔒</span> Khóa & Thoát
                     </button>
                   </div>
 
-                  {/* Password Change Section */}
                   <div className="bg-white rounded-3xl p-8 shadow-sm border border-slate-100">
                     <div className="flex justify-between items-center mb-6">
                       <h2 className="text-xl font-black text-slate-800 flex items-center gap-3"><span className="text-2xl">🔐</span> Bảo mật tài khoản</h2>
