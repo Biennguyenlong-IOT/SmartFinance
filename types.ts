@@ -51,4 +51,5 @@ export interface AppState {
   categories: Category[];
   favorites: FavoriteItem[];
   googleSheetUrl?: string;
+  settingsPassword?: string;
 }
