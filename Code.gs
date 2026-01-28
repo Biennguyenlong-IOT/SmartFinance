@@ -5,7 +5,8 @@ function doGet(e) {
     wallets: [],
     categories: [],
     favorites: [],
-    transactions: []
+    transactions: [],
+    settingsPassword: ""
   };
 
   try {
@@ -14,12 +15,13 @@ function doGet(e) {
     if (walletSheet) {
       const data = walletSheet.getDataRange().getValues();
       for (let i = 1; i < data.length; i++) {
-        if (!data[i][0]) continue; // Bỏ qua dòng trống
+        if (!data[i][0]) continue;
         res.wallets.push({ 
           id: String(data[i][0]), 
           name: data[i][1], 
           balance: Number(data[i][2]) || 0, 
-          icon: data[i][3] || '💳' 
+          icon: data[i][3] || '💳',
+          color: '#6366f1' // Mặc định
         });
       }
     }
@@ -34,7 +36,8 @@ function doGet(e) {
           id: String(data[i][0]), 
           name: data[i][1], 
           icon: data[i][2] || '✨', 
-          type: data[i][3] 
+          type: data[i][3],
+          color: data[i][3] === 'EXPENSE' ? '#f43f5e' : '#10b981'
         });
       }
     }
@@ -63,15 +66,34 @@ function doGet(e) {
       const data = txSheet.getDataRange().getValues();
       for (let i = 1; i < data.length; i++) {
         if (!data[i][0]) continue;
+        
+        // Xử lý ngày tháng
+        let dateVal = data[i][1];
+        if (dateVal instanceof Date) {
+          dateVal = dateVal.toISOString();
+        }
+
         res.transactions.push({ 
           id: String(data[i][0]), 
-          date: data[i][1], 
+          date: dateVal, 
           amount: Number(data[i][2]) || 0, 
           type: data[i][3], 
           categoryName: data[i][4], 
           walletName: data[i][5], 
-          note: data[i][6] 
+          note: data[i][6],
+          categoryId: String(data[i][7] || ""),
+          walletId: String(data[i][8] || ""),
+          icon: String(data[i][9] || "")
         });
+      }
+    }
+
+    // 5. Lấy cấu hình (Settings)
+    const settingsSheet = ss.getSheetByName('Settings');
+    if (settingsSheet) {
+      const data = settingsSheet.getDataRange().getValues();
+      if (data.length > 1) {
+        res.settingsPassword = String(data[1][0]);
       }
     }
 
@@ -107,15 +129,25 @@ function doPost(e) {
       // Sync Favorites
       const favSheet = ss.getSheetByName('YeuThich') || ss.insertSheet('YeuThich');
       favSheet.clear();
-      favSheet.appendRow(['ID', 'Tên món', 'Giá', 'Danh mục', 'Biểu tượng', 'Tên quán', 'Ví mặc định']);
+      favSheet.appendRow(['ID', 'Tên món', 'Giá', 'Danh mục ID', 'Biểu tượng', 'Tên quán', 'Ví ID']);
       data.favorites.forEach(f => favSheet.appendRow([f.id, f.name, f.price, f.categoryId, f.icon, f.shopName, f.defaultWalletId]));
       
       // Sync Transactions
       if (data.transactions) {
         const txSheet = ss.getSheetByName('GiaoDich') || ss.insertSheet('GiaoDich');
         txSheet.clear();
-        txSheet.appendRow(['ID', 'Thời gian', 'Số tiền', 'Loại', 'Danh mục', 'Ví', 'Ghi chú']);
-        data.transactions.forEach(t => txSheet.appendRow([t.id, t.date, t.amount, t.type, t.categoryName, t.walletName, t.note]));
+        txSheet.appendRow(['ID', 'Thời gian', 'Số tiền', 'Loại', 'Danh mục', 'Ví', 'Ghi chú', 'CategoryID', 'WalletID', 'Icon']);
+        data.transactions.forEach(t => {
+          txSheet.appendRow([t.id, t.date, t.amount, t.type, t.categoryName, t.walletName, t.note, t.categoryId, t.walletId, t.icon]);
+        });
+      }
+
+      // Sync Settings
+      if (data.settingsPassword) {
+        const settingsSheet = ss.getSheetByName('Settings') || ss.insertSheet('Settings');
+        settingsSheet.clear();
+        settingsSheet.appendRow(['Password']);
+        settingsSheet.appendRow([data.settingsPassword]);
       }
       
       return res.setContent(JSON.stringify({ status: 'success' }));
@@ -124,9 +156,10 @@ function doPost(e) {
     if (data.action === 'add_transaction') {
       const txSheet = ss.getSheetByName('GiaoDich') || ss.insertSheet('GiaoDich');
       const t = data.transaction;
-      txSheet.appendRow([t.id, t.date, t.amount, t.type, t.categoryName, t.walletName, t.note]);
+      // Thêm cột CategoryID (7), WalletID (8), Icon (9)
+      txSheet.appendRow([t.id, t.date, t.amount, t.type, t.categoryName, t.walletName, t.note, t.categoryId, t.walletId, t.icon]);
       
-      // Update balance in Vi sheet
+      // Cập nhật số dư ví
       const walletSheet = ss.getSheetByName('Vi');
       if (walletSheet) {
         const walletData = walletSheet.getDataRange().getValues();
@@ -143,9 +176,4 @@ function doPost(e) {
   } catch (error) {
     return res.setContent(JSON.stringify({ status: 'error', message: error.toString() }));
   }
-}
-
-function doOptions(e) {
-  return ContentService.createTextOutput("")
-    .setMimeType(ContentService.MimeType.TEXT);
 }
