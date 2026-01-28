@@ -8,8 +8,13 @@ interface Props {
   onDebtClick: (wallet: Wallet) => void;
 }
 
+const isDebtWallet = (w: Wallet) => w.id.includes('debt') || w.name.toLowerCase().includes('nợ');
+
 export const WalletOverview: React.FC<Props> = ({ wallets, onDebtClick }) => {
-  const total = wallets.reduce((sum, w) => sum + w.balance, 0);
+  // Tính tổng tài sản: Chỉ cộng các ví KHÔNG PHẢI là ví nợ
+  const totalAssets = wallets
+    .filter(w => !isDebtWallet(w))
+    .reduce((sum, w) => sum + w.balance, 0);
 
   return (
     <div className="bg-white rounded-3xl p-8 shadow-sm border border-slate-100">
@@ -17,7 +22,7 @@ export const WalletOverview: React.FC<Props> = ({ wallets, onDebtClick }) => {
         <div>
           <h2 className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-1">Tổng tài sản hiện có</h2>
           <div className="flex items-baseline gap-2">
-            <span className="text-4xl font-black text-slate-900 tracking-tight">{formatCurrency(total)}</span>
+            <span className="text-4xl font-black text-slate-900 tracking-tight">{formatCurrency(totalAssets)}</span>
             <span className="text-xl font-bold text-slate-400">₫</span>
           </div>
         </div>
@@ -30,7 +35,7 @@ export const WalletOverview: React.FC<Props> = ({ wallets, onDebtClick }) => {
       
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {wallets.map(wallet => {
-          const isDebt = wallet.id.includes('debt') || wallet.name.toLowerCase().includes('nợ');
+          const isDebt = isDebtWallet(wallet);
           return (
             <div 
               key={wallet.id} 
@@ -47,7 +52,7 @@ export const WalletOverview: React.FC<Props> = ({ wallets, onDebtClick }) => {
                 </div>
                 <div className="min-w-0">
                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider truncate mb-0.5">{wallet.name}</p>
-                  <p className={`text-lg font-black truncate ${wallet.balance < 0 ? 'text-red-600' : 'text-slate-800'}`}>
+                  <p className={`text-lg font-black truncate ${wallet.balance < 0 || isDebt ? 'text-red-600' : 'text-slate-800'}`}>
                     {formatCurrency(wallet.balance)}<span className="text-xs ml-0.5 font-bold">₫</span>
                   </p>
                   {isDebt && wallet.balance < 0 && (
