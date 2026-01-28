@@ -332,7 +332,7 @@ const App: React.FC = () => {
           <span className="text-2xl">🏠</span><span className="text-[10px] font-black uppercase tracking-tighter">Trang chủ</span>
         </button>
         <button onClick={() => setActiveTab('input')} className={`flex flex-col items-center gap-1 p-2 transition-all ${activeTab === 'input' ? 'text-indigo-600 scale-110' : 'text-slate-400'}`}>
-          <span className="text-2xl">➕</span><span className="text-[10px] font-black uppercase tracking-tighter">Ghi chép</span>
+          <span className="text-2xl">➕</span><span className="text-[10px] font-black uppercase tracking-tighter">Ghi chép</span> 
         </button>
         <button onClick={() => setActiveTab('history')} className={`flex flex-col items-center gap-1 p-2 transition-all ${activeTab === 'history' ? 'text-indigo-600 scale-110' : 'text-slate-400'}`}>
           <span className="text-2xl">📊</span><span className="text-[10px] font-black uppercase tracking-tighter">Lịch sử</span>
