@@ -9,6 +9,7 @@ import { ExpenseCharts } from './components/ExpenseCharts';
 import { GreetingHeader } from './components/GreetingHeader';
 import { FavoriteManager } from './components/FavoriteManager';
 import { PaymentModal } from './components/PaymentModal';
+import { DebtLedgerModal } from './components/DebtLedgerModal';
 import { CategoryManager } from './components/CategoryManager';
 import { WalletManager } from './components/WalletManager';
 import { syncToSheet, fetchFromSheet } from './services/sheetService';
@@ -40,6 +41,7 @@ const App: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<'dashboard' | 'input' | 'history' | 'settings'>('dashboard');
   const [selectedDebtWallet, setSelectedDebtWallet] = useState<Wallet | null>(null);
+  const [viewingLedgerWallet, setViewingLedgerWallet] = useState<Wallet | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
   const [lastSynced, setLastSynced] = useState<string | null>(null);
@@ -109,10 +111,12 @@ const App: React.FC = () => {
     let updatedWallets = [...state.wallets];
     let newTransactions: Transaction[] = [];
 
-    // 1. Xử lý Chuyển tiền
+    const sourceWallet = state.wallets.find(w => w.id === newT.walletId);
+    const targetWallet = newT.toWalletId ? state.wallets.find(w => w.id === newT.toWalletId) : undefined;
+
     if (newT.type === CategoryType.TRANSFER && newT.toWalletId) {
-      const outTx: Transaction = { id, amount: newT.amount, categoryId: '12', walletId: newT.walletId, date: paymentDate, note: newT.note || 'Chuyển tiền', type: CategoryType.EXPENSE, icon: '📤', categoryName: 'Chuyển tiền', walletName: state.wallets.find(w => w.id === newT.walletId)?.name };
-      const inTx: Transaction = { id: id + 'in', amount: newT.amount, categoryId: '12', walletId: newT.toWalletId, date: paymentDate, note: newT.note || 'Nhận tiền', type: CategoryType.INCOME, icon: '📥', categoryName: 'Chuyển tiền', walletName: state.wallets.find(w => w.id === newT.toWalletId)?.name };
+      const outTx: Transaction = { id, amount: newT.amount, categoryId: '12', walletId: newT.walletId, toWalletId: newT.toWalletId, date: paymentDate, note: newT.note || 'Chuyển tiền', type: CategoryType.EXPENSE, icon: '📤', categoryName: 'Chuyển tiền', walletName: sourceWallet?.name, toWalletName: targetWallet?.name };
+      const inTx: Transaction = { id: id + 'in', amount: newT.amount, categoryId: '12', walletId: newT.toWalletId, toWalletId: newT.walletId, date: paymentDate, note: newT.note || 'Nhận tiền', type: CategoryType.INCOME, icon: '📥', categoryName: 'Chuyển tiền', walletName: targetWallet?.name, toWalletName: sourceWallet?.name };
       newTransactions = [...state.transactions, outTx, inTx];
       updatedWallets = state.wallets.map(w => {
         if (w.id === newT.walletId) return { ...w, balance: w.balance - newT.amount };
@@ -122,51 +126,35 @@ const App: React.FC = () => {
       syncToSheet(SHEET_URL, { action: 'add_transaction', transaction: outTx, newBalance: updatedWallets.find(w => w.id === newT.walletId)?.balance });
       syncToSheet(SHEET_URL, { action: 'add_transaction', transaction: inTx, newBalance: updatedWallets.find(w => w.id === newT.toWalletId)?.balance });
     } 
-    // 2. Xử lý Trả nợ (Đặc biệt)
     else if (newT.categoryId === '10' && newT.toWalletId) {
       const category = state.categories.find(c => c.id === newT.categoryId);
-      const wallet = state.wallets.find(w => w.id === newT.walletId);
-      const transaction: Transaction = { ...newT, id, date: paymentDate, categoryName: category?.name, walletName: wallet?.name };
+      const transaction: Transaction = { ...newT, id, date: paymentDate, categoryName: category?.name, walletName: sourceWallet?.name, toWalletName: targetWallet?.name };
       newTransactions = [...state.transactions, transaction];
       
       updatedWallets = state.wallets.map(w => {
-        if (w.id === transaction.walletId) {
-          // Ví nguồn (Ví dụ: Tiền mặt) luôn trừ đi số tiền đã trả
-          return { ...w, balance: w.balance - transaction.amount };
-        }
-        if (w.id === newT.toWalletId) {
-          // Ví nợ (Ví dụ: Nợ Cafe) giảm số nợ xuống (trừ đi vì nợ là số dương)
-          return { ...w, balance: w.balance - transaction.amount };
-        }
+        if (w.id === transaction.walletId) return { ...w, balance: w.balance - transaction.amount };
+        if (w.id === newT.toWalletId) return { ...w, balance: w.balance - transaction.amount };
         return w;
       });
 
-      // Đồng bộ ví nguồn
       syncToSheet(SHEET_URL, { action: 'add_transaction', transaction, newBalance: updatedWallets.find(w => w.id === transaction.walletId)?.balance });
-      // Đồng bộ ví nợ (Cập nhật số nợ mới)
       const debtW = updatedWallets.find(w => w.id === newT.toWalletId);
       if (debtW) {
         syncToSheet(SHEET_URL, { action: 'update_wallet_balance', walletId: debtW.id, balance: debtW.balance });
       }
     } 
-    // 3. Xử lý Giao dịch thông thường (Chi tiêu/Thu nhập)
     else {
       const category = state.categories.find(c => c.id === newT.categoryId);
-      const wallet = state.wallets.find(w => w.id === newT.walletId);
-      const transaction: Transaction = { ...newT, id, date: paymentDate, categoryName: category?.name, walletName: wallet?.name };
+      const transaction: Transaction = { ...newT, id, date: paymentDate, categoryName: category?.name, walletName: sourceWallet?.name };
       newTransactions = [...state.transactions, transaction];
 
       updatedWallets = state.wallets.map(w => {
         if (w.id !== transaction.walletId) return w;
         const isDebt = isDebtWallet(w);
         let newBalance = w.balance;
-        
         if (transaction.type === CategoryType.EXPENSE) {
-          // Nếu ví nợ chi tiêu => nợ tăng lên (+)
-          // Nếu ví thường chi tiêu => số dư giảm (-)
           newBalance = isDebt ? w.balance + transaction.amount : w.balance - transaction.amount;
         } else {
-          // Thu nhập: ví thường tăng (+), ví nợ giảm (-)
           newBalance = isDebt ? w.balance - transaction.amount : w.balance + transaction.amount;
         }
         return { ...w, balance: newBalance };
@@ -204,6 +192,14 @@ const App: React.FC = () => {
         />
       )}
 
+      {viewingLedgerWallet && (
+        <DebtLedgerModal 
+          wallet={viewingLedgerWallet} 
+          transactions={state.transactions} 
+          onClose={() => setViewingLedgerWallet(null)} 
+        />
+      )}
+
       <button onClick={() => setActiveTab('input')} className={`fixed bottom-24 right-6 md:bottom-10 md:right-10 w-16 h-16 bg-indigo-600 text-white rounded-full shadow-2xl flex items-center justify-center text-3xl z-50 transition-all hover:scale-110 active:scale-95 ${activeTab === 'input' ? 'hidden' : 'flex'}`}>➕</button>
 
       <header className="bg-white/80 backdrop-blur-md border-b border-slate-100 sticky top-0 z-[60]">
@@ -236,7 +232,11 @@ const App: React.FC = () => {
         {activeTab === 'dashboard' && (
           <div className="space-y-10 animate-in fade-in duration-500">
             <GreetingHeader />
-            <WalletOverview wallets={state.wallets} onDebtClick={setSelectedDebtWallet} />
+            <WalletOverview 
+              wallets={state.wallets} 
+              onDebtClick={setSelectedDebtWallet} 
+              onViewLedger={setViewingLedgerWallet}
+            />
             <ExpenseCharts transactions={state.transactions} categories={state.categories} />
             <RecentTransactions transactions={state.transactions} categories={state.categories} wallets={state.wallets} onViewAll={() => setActiveTab('history')} />
           </div>
