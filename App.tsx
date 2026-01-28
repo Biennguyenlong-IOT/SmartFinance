@@ -237,7 +237,11 @@ const App: React.FC = () => {
               onDebtClick={setSelectedDebtWallet} 
               onViewLedger={setViewingLedgerWallet}
             />
-            <ExpenseCharts transactions={state.transactions} categories={state.categories} />
+            <ExpenseCharts 
+              transactions={state.transactions} 
+              categories={state.categories} 
+              wallets={state.wallets}
+            />
             <RecentTransactions transactions={state.transactions} categories={state.categories} wallets={state.wallets} onViewAll={() => setActiveTab('history')} />
           </div>
         )}
