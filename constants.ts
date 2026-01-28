@@ -2,18 +2,18 @@
 import { Category, CategoryType, Wallet, FavoriteItem } from './types';
 
 export const CATEGORIES: Category[] = [
-  { id: '1', name: 'Ăn uống', icon: '🍔', type: CategoryType.EXPENSE, color: '#ef4444' },
-  { id: '2', name: 'Di chuyển', icon: '🚗', type: CategoryType.EXPENSE, color: '#f59e0b' },
-  { id: '3', name: 'Mua sắm', icon: '🛍️', type: CategoryType.EXPENSE, color: '#3b82f6' },
-  { id: '4', name: 'Giải trí', icon: '🎮', type: CategoryType.EXPENSE, color: '#8b5cf6' },
-  { id: '5', name: 'Sức khỏe', icon: '💊', type: CategoryType.EXPENSE, color: '#10b981' },
-  { id: '6', name: 'Hóa đơn', icon: '⚡', type: CategoryType.EXPENSE, color: '#6366f1' },
-  { id: '10', name: 'Trả nợ', icon: '💸', type: CategoryType.EXPENSE, color: '#f43f5e' },
-  { id: '7', name: 'Lương', icon: '💰', type: CategoryType.INCOME, color: '#10b981' },
-  { id: '8', name: 'Tiền thưởng', icon: '🎁', type: CategoryType.INCOME, color: '#fbbf24' },
-  { id: '11', name: 'Thu nợ', icon: '📥', type: CategoryType.INCOME, color: '#06b6d4' },
-  { id: '12', name: 'Chuyển tiền', icon: '🔄', type: CategoryType.TRANSFER, color: '#6366f1' },
-  { id: '9', name: 'Khác', icon: '✨', type: CategoryType.INCOME, color: '#94a3b8' },
+  { id: '1', name: 'Ăn uống', icon: '🍔', type: CategoryType.EXPENSE, color: '#f43f5e' }, // Rose 500
+  { id: '2', name: 'Di chuyển', icon: '🚗', type: CategoryType.EXPENSE, color: '#fbbf24' }, // Amber 400
+  { id: '3', name: 'Mua sắm', icon: '🛍️', type: CategoryType.EXPENSE, color: '#6366f1' }, // Indigo 500
+  { id: '4', name: 'Giải trí', icon: '🎮', type: CategoryType.EXPENSE, color: '#a855f7' }, // Purple 500
+  { id: '5', name: 'Sức khỏe', icon: '💊', type: CategoryType.EXPENSE, color: '#10b981' }, // Emerald 500
+  { id: '6', name: 'Hóa đơn', icon: '⚡', type: CategoryType.EXPENSE, color: '#0ea5e9' }, // Sky 500
+  { id: '10', name: 'Trả nợ', icon: '💸', type: CategoryType.EXPENSE, color: '#ec4899' }, // Pink 500
+  { id: '7', name: 'Lương', icon: '💰', type: CategoryType.INCOME, color: '#2dd4bf' }, // Teal 400
+  { id: '8', name: 'Tiền thưởng', icon: '🎁', type: CategoryType.INCOME, color: '#f59e0b' }, // Amber 500
+  { id: '11', name: 'Thu nợ', icon: '📥', type: CategoryType.INCOME, color: '#06b6d4' }, // Cyan 500
+  { id: '12', name: 'Chuyển tiền', icon: '🔄', type: CategoryType.TRANSFER, color: '#818cf8' }, // Indigo 400
+  { id: '9', name: 'Khác', icon: '✨', type: CategoryType.INCOME, color: '#94a3b8' }, // Slate 400
 ];
 
 export const INITIAL_WALLETS: Wallet[] = [
