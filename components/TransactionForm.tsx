@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Category, Wallet, CategoryType, FavoriteItem } from '../types';
 import { formatInputNumber, parseInputNumber } from '../utils';
 
@@ -25,23 +25,41 @@ export const TransactionForm: React.FC<Props> = ({ categories, wallets, favorite
   const [displayAmount, setDisplayAmount] = useState<string>('');
   const [type, setType] = useState<CategoryType>(CategoryType.EXPENSE);
   const [categoryId, setCategoryId] = useState<string>('');
-  const [walletId, setWalletId] = useState<string>(wallets[0].id);
-  const [toWalletId, setToWalletId] = useState<string>(wallets[1]?.id || wallets[0].id);
+  
+  // Lọc danh sách ví: Chỉ hiện ví tài sản (không phải ví nợ/thẻ ghi nợ)
+  const isDebtWallet = (w: Wallet) => w.id.includes('debt') || w.name.toLowerCase().includes('nợ');
+  const availableWallets = useMemo(() => wallets.filter(w => !isDebtWallet(w)), [wallets]);
+
+  const [walletId, setWalletId] = useState<string>('');
+  const [toWalletId, setToWalletId] = useState<string>('');
   const [note, setNote] = useState<string>('');
   const [quickAddWalletId, setQuickAddWalletId] = useState<string>('default');
 
+  // Khởi tạo ví mặc định khi component mount hoặc danh sách ví thay đổi
+  useEffect(() => {
+    if (availableWallets.length > 0) {
+      if (!walletId) setWalletId(availableWallets[0].id);
+      if (!toWalletId) setToWalletId(availableWallets[1]?.id || availableWallets[0].id);
+    }
+  }, [availableWallets, walletId, toWalletId]);
+
+  // Cập nhật categoryId ngay khi type thay đổi
   useEffect(() => {
     if (type !== CategoryType.TRANSFER) {
-      const firstValidCat = categories.find(c => c.type === type);
-      if (firstValidCat) setCategoryId(firstValidCat.id);
+      const validCats = categories.filter(c => c.type === type);
+      if (validCats.length > 0) {
+        // Nếu categoryId hiện tại không thuộc nhóm type mới, reset về cái đầu tiên
+        if (!validCats.find(c => c.id === categoryId)) {
+          setCategoryId(validCats[0].id);
+        }
+      }
     } else {
-      setCategoryId('12');
+      setCategoryId('12'); // ID hệ thống cho chuyển khoản
     }
-  }, [type, categories]);
+  }, [type, categories, categoryId]);
 
   const numAmount = parseInputNumber(displayAmount);
   const selectedWallet = wallets.find(w => w.id === walletId);
-  const isDebtWallet = (w: Wallet) => w.id.includes('debt') || w.name.toLowerCase().includes('nợ');
 
   const isInsufficient = (type === CategoryType.EXPENSE || type === CategoryType.TRANSFER) && 
                          selectedWallet && 
@@ -71,11 +89,18 @@ export const TransactionForm: React.FC<Props> = ({ categories, wallets, favorite
     setDisplayAmount(formatInputNumber((current + amt).toString()));
   };
 
+  const filteredCategories = categories.filter(c => c.type === type);
+
   const groupedFavorites = favorites.reduce((acc, fav) => {
     if (!acc[fav.shopName]) acc[fav.shopName] = [];
     acc[fav.shopName].push(fav);
     return acc;
   }, {} as Record<string, FavoriteItem[]>);
+
+  const hasFavorites = Object.keys(groupedFavorites).length > 0;
+
+  // Style cho select để có mũi tên dropdown đẹp mắt
+  const selectClass = "w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:bg-white focus:ring-4 focus:ring-indigo-50 outline-none transition-all cursor-pointer appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20fill%3D%22none%22%20viewBox%3D%220%200%2024%2024%22%20stroke%3D%22%2394a3b8%22%3E%3Cpath%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20stroke-width%3D%222%22%20d%3D%22M19%209l-7%207-7-7%22%20%2F%3E%3C%2Fsvg%3E')] bg-[length:1.25rem_1.25rem] bg-[right_1.25rem_center] bg-no-repeat pr-12";
 
   return (
     <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-300">
@@ -134,24 +159,44 @@ export const TransactionForm: React.FC<Props> = ({ categories, wallets, favorite
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {type !== CategoryType.TRANSFER ? (
               <>
-                <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold appearance-none">
-                  {categories.filter(c => c.type === type).map(cat => (
-                    <option key={cat.id} value={cat.id}>{cat.icon} {cat.name}</option>
-                  ))}
+                <select 
+                  value={categoryId} 
+                  onChange={(e) => setCategoryId(e.target.value)} 
+                  className={selectClass}
+                >
+                  {filteredCategories.length > 0 ? (
+                    filteredCategories.map(cat => (
+                      <option key={cat.id} value={cat.id}>{cat.icon} {cat.name}</option>
+                    ))
+                  ) : (
+                    <option value="">Chọn danh mục...</option>
+                  )}
                 </select>
-                <select value={walletId} onChange={(e) => setWalletId(e.target.value)} className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold appearance-none">
-                  {wallets.map(w => (
+                <select 
+                  value={walletId} 
+                  onChange={(e) => setWalletId(e.target.value)} 
+                  className={selectClass}
+                >
+                  {availableWallets.map(w => (
                     <option key={w.id} value={w.id}>{w.icon} {w.name}</option>
                   ))}
                 </select>
               </>
             ) : (
               <>
-                <select value={walletId} onChange={(e) => setWalletId(e.target.value)} className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold appearance-none">
-                  {wallets.map(w => <option key={w.id} value={w.id}>Từ: {w.icon} {w.name}</option>)}
+                <select 
+                  value={walletId} 
+                  onChange={(e) => setWalletId(e.target.value)} 
+                  className={selectClass}
+                >
+                  {availableWallets.map(w => <option key={w.id} value={w.id}>Từ: {w.icon} {w.name}</option>)}
                 </select>
-                <select value={toWalletId} onChange={(e) => setToWalletId(e.target.value)} className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold appearance-none">
-                  {wallets.map(w => <option key={w.id} value={w.id}>Đến: {w.icon} {w.name}</option>)}
+                <select 
+                  value={toWalletId} 
+                  onChange={(e) => setToWalletId(e.target.value)} 
+                  className={selectClass}
+                >
+                  {availableWallets.map(w => <option key={w.id} value={w.id}>Đến: {w.icon} {w.name}</option>)}
                 </select>
               </>
             )}
@@ -179,47 +224,49 @@ export const TransactionForm: React.FC<Props> = ({ categories, wallets, favorite
         </form>
       </div>
 
-      <div className="bg-white rounded-[2rem] p-8 shadow-sm border border-slate-100">
-        <div className="flex justify-between items-center mb-6">
-           <h3 className="text-[10px] font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
-            <span className="w-2.5 h-2.5 bg-indigo-500 rounded-full"></span> Món quen ghi nhanh
-          </h3>
-          <select 
-            value={quickAddWalletId}
-            onChange={(e) => setQuickAddWalletId(e.target.value)}
-            className="px-3 py-2 bg-slate-50 border border-slate-100 rounded-xl text-[10px] font-black text-slate-500 outline-none appearance-none"
-          >
-            <option value="default">Ví mặc định</option>
-            {wallets.map(w => (
-              <option key={w.id} value={w.id}>{w.icon} {w.name}</option>
-            ))}
-          </select>
-        </div>
+      {type === CategoryType.EXPENSE && hasFavorites && (
+        <div className="bg-white rounded-[2rem] p-8 shadow-sm border border-slate-100">
+          <div className="flex justify-between items-center mb-6">
+             <h3 className="text-[10px] font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
+              <span className="w-2.5 h-2.5 bg-indigo-500 rounded-full"></span> Món quen ghi nhanh
+            </h3>
+            <select 
+              value={quickAddWalletId}
+              onChange={(e) => setQuickAddWalletId(e.target.value)}
+              className="px-3 py-2 bg-slate-50 border border-slate-100 rounded-xl text-[10px] font-black text-slate-500 outline-none appearance-none"
+            >
+              <option value="default">Ví mặc định</option>
+              {availableWallets.map(w => (
+                <option key={w.id} value={w.id}>{w.icon} {w.name}</option>
+              ))}
+            </select>
+          </div>
 
-        <div className="space-y-6">
-          {Object.keys(groupedFavorites).map((shop) => (
-            <div key={shop} className="space-y-3">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">{shop}</p>
-              <div className="grid grid-cols-2 gap-3">
-                {groupedFavorites[shop].map(fav => (
-                  <button
-                    key={fav.id}
-                    onClick={() => {
-                      const wId = quickAddWalletId === 'default' ? fav.defaultWalletId : quickAddWalletId;
-                      onAdd({ amount: fav.price, categoryId: fav.categoryId, walletId: wId, note: `${fav.shopName}: ${fav.name}`, type: CategoryType.EXPENSE, date: new Date().toISOString(), icon: fav.icon });
-                    }}
-                    className="flex flex-col p-4 bg-slate-50 border border-slate-100 rounded-2xl hover:border-indigo-100 hover:bg-indigo-50/30 transition-all active:scale-[0.97] group text-left"
-                  >
-                    <span className="text-2xl mb-2">{fav.icon}</span>
-                    <p className="text-xs font-black text-slate-700 truncate">{fav.name}</p>
-                    <p className="text-[10px] font-bold text-indigo-500">{fav.price.toLocaleString('vi-VN')}₫</p>
-                  </button>
-                ))}
+          <div className="space-y-6">
+            {Object.keys(groupedFavorites).map((shop) => (
+              <div key={shop} className="space-y-3">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">{shop}</p>
+                <div className="grid grid-cols-2 gap-3">
+                  {groupedFavorites[shop].map(fav => (
+                    <button
+                      key={fav.id}
+                      onClick={() => {
+                        const wId = quickAddWalletId === 'default' ? fav.defaultWalletId : quickAddWalletId;
+                        onAdd({ amount: fav.price, categoryId: fav.categoryId, walletId: wId, note: `${fav.shopName}: ${fav.name}`, type: CategoryType.EXPENSE, date: new Date().toISOString(), icon: fav.icon });
+                      }}
+                      className="flex flex-col p-4 bg-slate-50 border border-slate-100 rounded-2xl hover:border-indigo-100 hover:bg-indigo-50/30 transition-all active:scale-[0.97] group text-left"
+                    >
+                      <span className="text-2xl mb-2">{fav.icon}</span>
+                      <p className="text-xs font-black text-slate-700 truncate">{fav.name}</p>
+                      <p className="text-[10px] font-bold text-indigo-500">{fav.price.toLocaleString('vi-VN')}₫</p>
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };
