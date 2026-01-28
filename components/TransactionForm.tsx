@@ -26,29 +26,46 @@ export const TransactionForm: React.FC<Props> = ({ categories, wallets, favorite
   const [type, setType] = useState<CategoryType>(CategoryType.EXPENSE);
   const [categoryId, setCategoryId] = useState<string>('');
   
-  // Lọc danh sách ví: Chỉ hiện ví tài sản (không phải ví nợ/thẻ ghi nợ)
+  // Phân loại ví
   const isDebtWallet = (w: Wallet) => w.id.includes('debt') || w.name.toLowerCase().includes('nợ');
-  const availableWallets = useMemo(() => wallets.filter(w => !isDebtWallet(w)), [wallets]);
+  const assetWallets = useMemo(() => wallets.filter(w => !isDebtWallet(w)), [wallets]);
+  const allWallets = wallets;
+
+  // Xác định danh sách ví hiển thị dựa trên loại giao dịch
+  const displayWallets = useMemo(() => {
+    if (type === CategoryType.EXPENSE) return allWallets;
+    return assetWallets;
+  }, [type, allWallets, assetWallets]);
 
   const [walletId, setWalletId] = useState<string>('');
   const [toWalletId, setToWalletId] = useState<string>('');
   const [note, setNote] = useState<string>('');
   const [quickAddWalletId, setQuickAddWalletId] = useState<string>('default');
 
-  // Khởi tạo ví mặc định khi component mount hoặc danh sách ví thay đổi
+  // Khởi tạo ví khi mount hoặc khi loại giao dịch thay đổi
   useEffect(() => {
-    if (availableWallets.length > 0) {
-      if (!walletId) setWalletId(availableWallets[0].id);
-      if (!toWalletId) setToWalletId(availableWallets[1]?.id || availableWallets[0].id);
+    if (displayWallets.length > 0) {
+      // Nếu ví hiện tại không nằm trong danh sách hiển thị (ví dụ: đang chọn ví nợ mà chuyển sang Thu nhập)
+      if (!displayWallets.find(w => w.id === walletId)) {
+        setWalletId(displayWallets[0].id);
+      }
     }
-  }, [availableWallets, walletId, toWalletId]);
+  }, [displayWallets, walletId]);
 
-  // Cập nhật categoryId ngay khi type thay đổi
+  // Khởi tạo ví đích cho Chuyển tiền
+  useEffect(() => {
+    if (type === CategoryType.TRANSFER && assetWallets.length > 0) {
+      if (!toWalletId || !assetWallets.find(w => w.id === toWalletId)) {
+        setToWalletId(assetWallets[1]?.id || assetWallets[0].id);
+      }
+    }
+  }, [type, assetWallets, toWalletId]);
+
+  // Cập nhật categoryId ngay khi type thay đổi để tránh "thẻ trống"
   useEffect(() => {
     if (type !== CategoryType.TRANSFER) {
       const validCats = categories.filter(c => c.type === type);
       if (validCats.length > 0) {
-        // Nếu categoryId hiện tại không thuộc nhóm type mới, reset về cái đầu tiên
         if (!validCats.find(c => c.id === categoryId)) {
           setCategoryId(validCats[0].id);
         }
@@ -61,6 +78,7 @@ export const TransactionForm: React.FC<Props> = ({ categories, wallets, favorite
   const numAmount = parseInputNumber(displayAmount);
   const selectedWallet = wallets.find(w => w.id === walletId);
 
+  // Kiểm tra số dư (chỉ cảnh báo nếu không phải ví nợ)
   const isInsufficient = (type === CategoryType.EXPENSE || type === CategoryType.TRANSFER) && 
                          selectedWallet && 
                          !isDebtWallet(selectedWallet) &&
@@ -68,7 +86,7 @@ export const TransactionForm: React.FC<Props> = ({ categories, wallets, favorite
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (numAmount <= 0 || isInsufficient) return;
+    if (numAmount <= 0 || (isInsufficient && type === CategoryType.TRANSFER)) return;
     const selectedCategory = categories.find(c => c.id === categoryId);
     onAdd({
       amount: numAmount,
@@ -99,7 +117,6 @@ export const TransactionForm: React.FC<Props> = ({ categories, wallets, favorite
 
   const hasFavorites = Object.keys(groupedFavorites).length > 0;
 
-  // Style cho select để có mũi tên dropdown đẹp mắt
   const selectClass = "w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:bg-white focus:ring-4 focus:ring-indigo-50 outline-none transition-all cursor-pointer appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20fill%3D%22none%22%20viewBox%3D%220%200%2024%2024%22%20stroke%3D%22%2394a3b8%22%3E%3Cpath%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20stroke-width%3D%222%22%20d%3D%22M19%209l-7%207-7-7%22%20%2F%3E%3C%2Fsvg%3E')] bg-[length:1.25rem_1.25rem] bg-[right_1.25rem_center] bg-no-repeat pr-12";
 
   return (
@@ -153,7 +170,11 @@ export const TransactionForm: React.FC<Props> = ({ categories, wallets, favorite
                 </button>
               ))}
             </div>
-            {isInsufficient && <p className="text-[10px] text-red-500 font-bold mt-2 ml-1 animate-pulse">⚠️ Số dư không đủ!</p>}
+            {isInsufficient && (
+              <p className="text-[10px] text-red-500 font-bold mt-2 ml-1 animate-pulse">
+                ⚠️ {isDebtWallet(selectedWallet!) ? 'Lưu ý: Bạn đang chi tiêu bằng ví nợ.' : 'Số dư khả dụng không đủ!'}
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -177,7 +198,7 @@ export const TransactionForm: React.FC<Props> = ({ categories, wallets, favorite
                   onChange={(e) => setWalletId(e.target.value)} 
                   className={selectClass}
                 >
-                  {availableWallets.map(w => (
+                  {displayWallets.map(w => (
                     <option key={w.id} value={w.id}>{w.icon} {w.name}</option>
                   ))}
                 </select>
@@ -189,14 +210,14 @@ export const TransactionForm: React.FC<Props> = ({ categories, wallets, favorite
                   onChange={(e) => setWalletId(e.target.value)} 
                   className={selectClass}
                 >
-                  {availableWallets.map(w => <option key={w.id} value={w.id}>Từ: {w.icon} {w.name}</option>)}
+                  {assetWallets.map(w => <option key={w.id} value={w.id}>Từ: {w.icon} {w.name}</option>)}
                 </select>
                 <select 
                   value={toWalletId} 
                   onChange={(e) => setToWalletId(e.target.value)} 
                   className={selectClass}
                 >
-                  {availableWallets.map(w => <option key={w.id} value={w.id}>Đến: {w.icon} {w.name}</option>)}
+                  {assetWallets.map(w => <option key={w.id} value={w.id}>Đến: {w.icon} {w.name}</option>)}
                 </select>
               </>
             )}
@@ -212,9 +233,9 @@ export const TransactionForm: React.FC<Props> = ({ categories, wallets, favorite
 
           <button
             type="submit"
-            disabled={isInsufficient || numAmount <= 0}
+            disabled={numAmount <= 0}
             className={`w-full py-5 rounded-2xl font-black text-sm uppercase tracking-widest text-white shadow-xl transition-all active:scale-[0.98] ${
-              isInsufficient || numAmount <= 0 
+              numAmount <= 0 
                 ? 'bg-slate-200 text-slate-400 shadow-none' 
                 : (type === CategoryType.EXPENSE ? 'bg-rose-500' : type === CategoryType.INCOME ? 'bg-emerald-500' : 'bg-indigo-600')
             }`}
@@ -236,7 +257,7 @@ export const TransactionForm: React.FC<Props> = ({ categories, wallets, favorite
               className="px-3 py-2 bg-slate-50 border border-slate-100 rounded-xl text-[10px] font-black text-slate-500 outline-none appearance-none"
             >
               <option value="default">Ví mặc định</option>
-              {availableWallets.map(w => (
+              {allWallets.map(w => (
                 <option key={w.id} value={w.id}>{w.icon} {w.name}</option>
               ))}
             </select>
