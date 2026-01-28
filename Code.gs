@@ -156,24 +156,37 @@ function doPost(e) {
     if (data.action === 'add_transaction') {
       const txSheet = ss.getSheetByName('GiaoDich') || ss.insertSheet('GiaoDich');
       const t = data.transaction;
-      // Thêm cột CategoryID (7), WalletID (8), Icon (9)
       txSheet.appendRow([t.id, t.date, t.amount, t.type, t.categoryName, t.walletName, t.note, t.categoryId, t.walletId, t.icon]);
       
-      // Cập nhật số dư ví
-      const walletSheet = ss.getSheetByName('Vi');
-      if (walletSheet) {
-        const walletData = walletSheet.getDataRange().getValues();
-        for (let i = 1; i < walletData.length; i++) {
-          if (String(walletData[i][0]) === String(t.walletId)) {
-            walletSheet.getRange(i + 1, 3).setValue(data.newBalance);
-            break;
-          }
-        }
-      }
+      // Cập nhật số dư ví (Ví nguồn)
+      updateWalletBalance(ss, t.walletId, data.newBalance);
+      return res.setContent(JSON.stringify({ status: 'success' }));
+    }
+
+    if (data.action === 'update_wallet_balance') {
+      // Cập nhật số dư cho một ví bất kỳ (Dùng cho ví nợ khi trả nợ từng phần)
+      updateWalletBalance(ss, data.walletId, data.balance);
       return res.setContent(JSON.stringify({ status: 'success' }));
     }
 
   } catch (error) {
     return res.setContent(JSON.stringify({ status: 'error', message: error.toString() }));
   }
+}
+
+/**
+ * Hàm hỗ trợ cập nhật số dư của một ví cụ thể trong sheet 'Vi'
+ */
+function updateWalletBalance(ss, walletId, newBalance) {
+  const walletSheet = ss.getSheetByName('Vi');
+  if (walletSheet) {
+    const walletData = walletSheet.getDataRange().getValues();
+    for (let i = 1; i < walletData.length; i++) {
+      if (String(walletData[i][0]) === String(walletId)) {
+        walletSheet.getRange(i + 1, 3).setValue(newBalance);
+        return true;
+      }
+    }
+  }
+  return false;
 }
