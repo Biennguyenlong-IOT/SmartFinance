@@ -10,7 +10,6 @@ function doGet(e) {
   };
 
   try {
-    // 1. Lấy dữ liệu Ví (Vi)
     const walletSheet = ss.getSheetByName('Vi');
     if (walletSheet) {
       const data = walletSheet.getDataRange().getValues();
@@ -21,12 +20,11 @@ function doGet(e) {
           name: data[i][1], 
           balance: Number(data[i][2]) || 0, 
           icon: data[i][3] || '💳',
-          color: '#6366f1' // Mặc định
+          color: '#6366f1'
         });
       }
     }
 
-    // 2. Lấy dữ liệu Danh mục (DanhMuc)
     const catSheet = ss.getSheetByName('DanhMuc');
     if (catSheet) {
       const data = catSheet.getDataRange().getValues();
@@ -42,7 +40,6 @@ function doGet(e) {
       }
     }
 
-    // 3. Lấy dữ liệu Đơn giá quán quen (YeuThich)
     const favSheet = ss.getSheetByName('YeuThich');
     if (favSheet) {
       const data = favSheet.getDataRange().getValues();
@@ -60,18 +57,13 @@ function doGet(e) {
       }
     }
 
-    // 4. Lấy dữ liệu Giao dịch (GiaoDich)
     const txSheet = ss.getSheetByName('GiaoDich');
     if (txSheet) {
       const data = txSheet.getDataRange().getValues();
       for (let i = 1; i < data.length; i++) {
         if (!data[i][0]) continue;
-        
-        // Xử lý ngày tháng
         let dateVal = data[i][1];
-        if (dateVal instanceof Date) {
-          dateVal = dateVal.toISOString();
-        }
+        if (dateVal instanceof Date) { dateVal = dateVal.toISOString(); }
 
         res.transactions.push({ 
           id: String(data[i][0]), 
@@ -83,25 +75,22 @@ function doGet(e) {
           note: data[i][6],
           categoryId: String(data[i][7] || ""),
           walletId: String(data[i][8] || ""),
-          icon: String(data[i][9] || "")
+          icon: String(data[i][9] || ""),
+          toWalletId: String(data[i][10] || ""),
+          toWalletName: String(data[i][11] || "")
         });
       }
     }
 
-    // 5. Lấy cấu hình (Settings)
     const settingsSheet = ss.getSheetByName('Settings');
     if (settingsSheet) {
       const data = settingsSheet.getDataRange().getValues();
-      if (data.length > 1) {
-        res.settingsPassword = String(data[1][0]);
-      }
+      if (data.length > 1) { res.settingsPassword = String(data[1][0]); }
     }
 
-    return ContentService.createTextOutput(JSON.stringify(res))
-      .setMimeType(ContentService.MimeType.JSON);
+    return ContentService.createTextOutput(JSON.stringify(res)).setMimeType(ContentService.MimeType.JSON);
   } catch (f) {
-    return ContentService.createTextOutput(JSON.stringify({ error: f.toString() }))
-      .setMimeType(ContentService.MimeType.JSON);
+    return ContentService.createTextOutput(JSON.stringify({ error: f.toString() })).setMimeType(ContentService.MimeType.JSON);
   }
 }
 
@@ -114,57 +103,48 @@ function doPost(e) {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     
     if (data.action === 'sync_all') {
-      // Sync Wallets
       const walletSheet = ss.getSheetByName('Vi') || ss.insertSheet('Vi');
       walletSheet.clear();
       walletSheet.appendRow(['ID', 'Tên Ví', 'Số dư', 'Biểu tượng']);
       data.wallets.forEach(w => walletSheet.appendRow([w.id, w.name, w.balance, w.icon]));
       
-      // Sync Categories
       const catSheet = ss.getSheetByName('DanhMuc') || ss.insertSheet('DanhMuc');
       catSheet.clear();
       catSheet.appendRow(['ID', 'Tên', 'Biểu tượng', 'Loại']);
       data.categories.forEach(c => catSheet.appendRow([c.id, c.name, c.icon, c.type]));
       
-      // Sync Favorites
       const favSheet = ss.getSheetByName('YeuThich') || ss.insertSheet('YeuThich');
       favSheet.clear();
       favSheet.appendRow(['ID', 'Tên món', 'Giá', 'Danh mục ID', 'Biểu tượng', 'Tên quán', 'Ví ID']);
       data.favorites.forEach(f => favSheet.appendRow([f.id, f.name, f.price, f.categoryId, f.icon, f.shopName, f.defaultWalletId]));
       
-      // Sync Transactions
       if (data.transactions) {
         const txSheet = ss.getSheetByName('GiaoDich') || ss.insertSheet('GiaoDich');
         txSheet.clear();
-        txSheet.appendRow(['ID', 'Thời gian', 'Số tiền', 'Loại', 'Danh mục', 'Ví', 'Ghi chú', 'CategoryID', 'WalletID', 'Icon']);
+        txSheet.appendRow(['ID', 'Thời gian', 'Số tiền', 'Loại', 'Danh mục', 'Ví', 'Ghi chú', 'CategoryID', 'WalletID', 'Icon', 'ToWalletID', 'ToWalletName']);
         data.transactions.forEach(t => {
-          txSheet.appendRow([t.id, t.date, t.amount, t.type, t.categoryName, t.walletName, t.note, t.categoryId, t.walletId, t.icon]);
+          txSheet.appendRow([t.id, t.date, t.amount, t.type, t.categoryName, t.walletName, t.note, t.categoryId, t.walletId, t.icon, t.toWalletId || "", t.toWalletName || ""]);
         });
       }
 
-      // Sync Settings
       if (data.settingsPassword) {
         const settingsSheet = ss.getSheetByName('Settings') || ss.insertSheet('Settings');
         settingsSheet.clear();
         settingsSheet.appendRow(['Password']);
         settingsSheet.appendRow([data.settingsPassword]);
       }
-      
       return res.setContent(JSON.stringify({ status: 'success' }));
     }
     
     if (data.action === 'add_transaction') {
       const txSheet = ss.getSheetByName('GiaoDich') || ss.insertSheet('GiaoDich');
       const t = data.transaction;
-      txSheet.appendRow([t.id, t.date, t.amount, t.type, t.categoryName, t.walletName, t.note, t.categoryId, t.walletId, t.icon]);
-      
-      // Cập nhật số dư ví (Ví nguồn)
+      txSheet.appendRow([t.id, t.date, t.amount, t.type, t.categoryName, t.walletName, t.note, t.categoryId, t.walletId, t.icon, t.toWalletId || "", t.toWalletName || ""]);
       updateWalletBalance(ss, t.walletId, data.newBalance);
       return res.setContent(JSON.stringify({ status: 'success' }));
     }
 
     if (data.action === 'update_wallet_balance') {
-      // Cập nhật số dư cho một ví bất kỳ (Dùng cho ví nợ khi trả nợ từng phần)
       updateWalletBalance(ss, data.walletId, data.balance);
       return res.setContent(JSON.stringify({ status: 'success' }));
     }
@@ -174,9 +154,6 @@ function doPost(e) {
   }
 }
 
-/**
- * Hàm hỗ trợ cập nhật số dư của một ví cụ thể trong sheet 'Vi'
- */
 function updateWalletBalance(ss, walletId, newBalance) {
   const walletSheet = ss.getSheetByName('Vi');
   if (walletSheet) {
