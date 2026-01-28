@@ -6,11 +6,12 @@ import { formatCurrency } from '../utils';
 interface Props {
   wallets: Wallet[];
   onDebtClick: (wallet: Wallet) => void;
+  onViewLedger: (wallet: Wallet) => void;
 }
 
 const isDebtWallet = (w: Wallet) => w.id.includes('debt') || w.name.toLowerCase().includes('nợ');
 
-export const WalletOverview: React.FC<Props> = ({ wallets, onDebtClick }) => {
+export const WalletOverview: React.FC<Props> = ({ wallets, onDebtClick, onViewLedger }) => {
   const assets = wallets.filter(w => !isDebtWallet(w));
   const debts = wallets.filter(w => isDebtWallet(w));
   
@@ -56,20 +57,28 @@ export const WalletOverview: React.FC<Props> = ({ wallets, onDebtClick }) => {
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {debts.map(wallet => (
-              <button 
-                key={wallet.id} 
-                onClick={() => onDebtClick(wallet)}
-                className="text-left p-5 bg-rose-50/30 border border-rose-100 rounded-2xl hover:bg-rose-50 hover:border-rose-300 transition-all group"
-              >
-                <div className="flex justify-between items-start mb-3">
-                  <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-2xl shadow-sm border border-rose-100 group-hover:rotate-12 transition-transform">
-                    {wallet.icon}
+              <div key={wallet.id} className="relative group">
+                <button 
+                  onClick={() => onDebtClick(wallet)}
+                  className="w-full text-left p-5 bg-rose-50/30 border border-rose-100 rounded-2xl hover:bg-rose-50 hover:border-rose-300 transition-all group"
+                >
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-2xl shadow-sm border border-rose-100 group-hover:rotate-12 transition-transform">
+                      {wallet.icon}
+                    </div>
+                    <span className="text-[10px] font-black text-rose-500 uppercase bg-white px-2 py-1 rounded-lg border border-rose-100">Trả ngay</span>
                   </div>
-                  <span className="text-[10px] font-black text-rose-500 uppercase bg-white px-2 py-1 rounded-lg border border-rose-100">Trả ngay</span>
-                </div>
-                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">{wallet.name}</p>
-                <p className="text-lg font-black text-rose-600">{formatCurrency(wallet.balance)}<span className="text-[10px] ml-0.5">₫</span></p>
-              </button>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">{wallet.name}</p>
+                  <p className="text-lg font-black text-rose-600">{formatCurrency(wallet.balance)}<span className="text-[10px] ml-0.5">₫</span></p>
+                </button>
+                <button 
+                  onClick={(e) => { e.stopPropagation(); onViewLedger(wallet); }}
+                  className="absolute bottom-4 right-4 w-8 h-8 bg-white border border-rose-100 rounded-xl flex items-center justify-center text-slate-400 hover:text-rose-500 hover:shadow-md transition-all opacity-0 group-hover:opacity-100"
+                  title="Xem sổ nợ"
+                >
+                  📄
+                </button>
+              </div>
             ))}
           </div>
         </div>
