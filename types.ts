@@ -36,6 +36,7 @@ export interface Transaction {
   amount: number;
   categoryId: string;
   walletId: string;
+  toWalletId?: string; // Ví nhận (dành cho trả nợ/chuyển tiền)
   date: string;
   note: string;
   type: CategoryType;
@@ -43,6 +44,7 @@ export interface Transaction {
   // Metadata cho Sheet
   categoryName?: string;
   walletName?: string;
+  toWalletName?: string;
 }
 
 export interface AppState {
