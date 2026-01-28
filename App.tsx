@@ -43,10 +43,27 @@ const App: React.FC = () => {
   const [isFetching, setIsFetching] = useState(false);
   const [lastSynced, setLastSynced] = useState<string | null>(null);
   
-  // Security
+  // Security state
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [passwordInput, setPasswordInput] = useState('');
   const [passwordError, setPasswordError] = useState(false);
+
+  // Change Password Form
+  const [showPasswordChange, setShowPasswordChange] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+
+  // EFFECT: Auto-lock when leaving the settings tab
+  useEffect(() => {
+    if (activeTab !== 'settings') {
+      setIsUnlocked(false);
+      setPasswordInput('');
+      setPasswordError(false);
+      setShowPasswordChange(false);
+      setNewPassword('');
+      setConfirmPassword('');
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -79,6 +96,47 @@ const App: React.FC = () => {
   useEffect(() => {
     pullDataFromSheet(true);
   }, [pullDataFromSheet]);
+
+  const syncConfigToSheet = async (updatedState: AppState) => {
+    setIsSyncing(true);
+    const success = await syncToSheet(SHEET_URL, {
+      action: 'sync_all',
+      wallets: updatedState.wallets,
+      categories: updatedState.categories,
+      favorites: updatedState.favorites,
+      settingsPassword: updatedState.settingsPassword,
+      transactions: updatedState.transactions
+    });
+    setIsSyncing(false);
+    return success;
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPassword || newPassword.length < 4) {
+      alert("Mật khẩu phải có ít nhất 4 ký tự.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      alert("Xác nhận mật khẩu không khớp.");
+      return;
+    }
+
+    const updatedState = { ...state, settingsPassword: newPassword };
+    setState(updatedState);
+    const success = await syncConfigToSheet(updatedState);
+    
+    if (success) {
+      alert("Đã đổi mật khẩu thành công! Hệ thống sẽ khóa để bạn đăng nhập bằng mật khẩu mới.");
+      setIsUnlocked(false); // Force re-login with new password
+      setShowPasswordChange(false);
+      setNewPassword('');
+      setConfirmPassword('');
+      setPasswordInput('');
+    } else {
+      alert("Lỗi khi đồng bộ mật khẩu lên Cloud. Vui lòng thử lại.");
+    }
+  };
 
   const addTransaction = async (newT: Omit<Transaction, 'id'> & { toWalletId?: string }) => {
     const paymentDate = newT.date || new Date().toISOString();
@@ -145,7 +203,7 @@ const App: React.FC = () => {
             {(['dashboard', 'input', 'history', 'settings'] as const).map((tab) => (
               <button 
                 key={tab} 
-                onClick={() => { setActiveTab(tab); if (tab !== 'settings') setIsUnlocked(false); }} 
+                onClick={() => setActiveTab(tab)} 
                 className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${activeTab === tab ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
               >
                 {tab === 'dashboard' ? 'Tổng quan' : tab === 'input' ? 'Ghi chép' : tab === 'history' ? 'Lịch sử' : 'Cấu hình'}
@@ -194,7 +252,7 @@ const App: React.FC = () => {
                 <div className="p-10 bg-white rounded-[2.5rem] shadow-2xl border border-slate-100 text-center animate-in zoom-in-95 duration-300">
                   <div className="w-20 h-20 bg-indigo-50 rounded-3xl flex items-center justify-center text-4xl mx-auto mb-6">🔒</div>
                   <h2 className="text-2xl font-black text-slate-800 mb-2">Cấu hình bảo mật</h2>
-                  <p className="text-slate-400 text-sm mb-8">Vui lòng nhập mật khẩu để thay đổi cài đặt hệ thống.</p>
+                  <p className="text-slate-400 text-sm mb-8">Vui lòng nhập mật khẩu để quản lý hệ thống.</p>
                   <form onSubmit={(e) => {
                     e.preventDefault();
                     if (passwordInput === state.settingsPassword) { setIsUnlocked(true); setPasswordError(false); }
@@ -202,18 +260,111 @@ const App: React.FC = () => {
                   }} className="space-y-4 max-w-xs mx-auto">
                     <input autoFocus type="password" value={passwordInput} onChange={e => setPasswordInput(e.target.value)} className={`w-full px-6 py-4 bg-slate-50 border rounded-2xl text-center text-2xl font-black outline-none transition-all ${passwordError ? 'border-red-500 ring-4 ring-red-50' : 'border-slate-200 focus:ring-4 focus:ring-indigo-50'}`} placeholder="••••••" />
                     {passwordError && <p className="text-xs text-red-500 font-bold">Mật khẩu không đúng!</p>}
-                    <button type="submit" className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-indigo-100 transition-all hover:bg-indigo-700 active:scale-95">Xác thực</button>
+                    <button type="submit" className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-indigo-100 hover:bg-indigo-700 active:scale-95">Xác thực</button>
                   </form>
                   <p className="mt-8 text-[10px] text-slate-300 font-bold uppercase italic">* Mật khẩu mặc định: 123456</p>
                 </div>
              ) : (
                 <div className="space-y-10 animate-in fade-in duration-500">
-                  <div className="flex justify-between items-center">
-                    <h2 className="text-2xl font-black text-slate-800">Cấu hình hệ thống</h2>
-                    <button onClick={() => setIsUnlocked(false)} className="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl text-xs font-black uppercase">Đóng</button>
+                  <div className="flex justify-between items-center bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+                    <div>
+                       <h2 className="text-2xl font-black text-slate-800 leading-tight">Cấu hình hệ thống</h2>
+                       <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Quản lý ví, danh mục và bảo mật</p>
+                    </div>
+                    {/* Updated Lock Button: resetting isUnlocked will trigger the lock screen for this tab */}
+                    <button onClick={() => { setIsUnlocked(false); setPasswordInput(''); }} className="px-5 py-2.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-xl text-xs font-black uppercase border border-rose-200 transition-all flex items-center gap-2">
+                      <span>🔒</span> Khóa & Thoát
+                    </button>
                   </div>
-                  <CategoryManager categories={state.categories} onAdd={(cat) => setState(p => ({...p, categories: [...p.categories, {...cat, id: 'c-'+Date.now()}]}))} onDelete={id => setState(p => ({...p, categories: p.categories.filter(c => c.id !== id)}))} onUpdate={(id, up) => setState(p => ({...p, categories: p.categories.map(c => c.id === id ? {...c, ...up} : c)}))} />
-                  <FavoriteManager favorites={state.favorites} categories={state.categories} wallets={state.wallets} onAdd={ni => setState(p => ({...p, favorites: [...p.favorites, {...ni, id: 'f-'+Date.now()}]}))} onUpdate={(id, up) => setState(p => ({...p, favorites: p.favorites.map(f => f.id === id ? {...f, ...up} : f)}))} onDelete={id => setState(p => ({...p, favorites: p.favorites.filter(f => f.id !== id)}))} onUpdateShopName={(o, n) => setState(p => ({...p, favorites: p.favorites.map(f => f.shopName === o ? {...f, shopName: n} : f)}))} />
+
+                  {/* Password Change Section */}
+                  <div className="bg-white rounded-3xl p-8 shadow-sm border border-slate-100">
+                    <div className="flex justify-between items-center mb-6">
+                      <h2 className="text-xl font-black text-slate-800 flex items-center gap-3"><span className="text-2xl">🔐</span> Bảo mật tài khoản</h2>
+                      <button 
+                        onClick={() => setShowPasswordChange(!showPasswordChange)}
+                        className={`px-4 py-2 text-[11px] font-black uppercase tracking-wider rounded-xl transition-all ${showPasswordChange ? 'bg-red-50 text-red-600' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'}`}
+                      >
+                        {showPasswordChange ? 'Hủy bỏ' : 'Đổi mật khẩu'}
+                      </button>
+                    </div>
+
+                    {showPasswordChange ? (
+                      <form onSubmit={handleChangePassword} className="space-y-6 animate-in slide-in-from-top-4 duration-300 p-6 bg-slate-50 border border-slate-100 rounded-[2rem]">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div>
+                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Mật khẩu mới</label>
+                            <input 
+                              type="password" 
+                              value={newPassword} 
+                              onChange={e => setNewPassword(e.target.value)}
+                              className="w-full px-5 py-4 bg-white border border-slate-200 rounded-2xl text-sm font-bold outline-none focus:ring-4 focus:ring-indigo-50 transition-all"
+                              placeholder="Nhập mật khẩu mới..."
+                              required
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Xác nhận mật khẩu</label>
+                            <input 
+                              type="password" 
+                              value={confirmPassword} 
+                              onChange={e => setConfirmPassword(e.target.value)}
+                              className="w-full px-5 py-4 bg-white border border-slate-200 rounded-2xl text-sm font-bold outline-none focus:ring-4 focus:ring-indigo-50 transition-all"
+                              placeholder="Nhập lại mật khẩu mới..."
+                              required
+                            />
+                          </div>
+                        </div>
+                        <button 
+                          type="submit" 
+                          disabled={isSyncing}
+                          className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-50"
+                        >
+                          {isSyncing ? 'Đang lưu Cloud...' : 'Cập nhật mật khẩu mới'}
+                        </button>
+                      </form>
+                    ) : (
+                      <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                        <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-xl shadow-sm border border-slate-100">🛡️</div>
+                        <div>
+                          <p className="text-sm font-bold text-slate-700">Mật khẩu hiện tại: ••••••</p>
+                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Luôn giữ bí mật để bảo vệ dữ liệu chi tiêu của bạn</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <CategoryManager categories={state.categories} onAdd={(cat) => {
+                    const updated = { ...state, categories: [...state.categories, { ...cat, id: 'c-' + Date.now() }] };
+                    setState(updated);
+                    syncConfigToSheet(updated);
+                  }} onDelete={id => {
+                    const updated = { ...state, categories: state.categories.filter(c => c.id !== id) };
+                    setState(updated);
+                    syncConfigToSheet(updated);
+                  }} onUpdate={(id, up) => {
+                    const updated = { ...state, categories: state.categories.map(c => c.id === id ? { ...c, ...up } : c) };
+                    setState(updated);
+                    syncConfigToSheet(updated);
+                  }} />
+
+                  <FavoriteManager favorites={state.favorites} categories={state.categories} wallets={state.wallets} onAdd={ni => {
+                    const updated = { ...state, favorites: [...state.favorites, { ...ni, id: 'f-' + Date.now() }] };
+                    setState(updated);
+                    syncConfigToSheet(updated);
+                  }} onUpdate={(id, up) => {
+                    const updated = { ...state, favorites: state.favorites.map(f => f.id === id ? { ...f, ...up } : f) };
+                    setState(updated);
+                    syncConfigToSheet(updated);
+                  }} onDelete={id => {
+                    const updated = { ...state, favorites: state.favorites.filter(f => f.id !== id) };
+                    setState(updated);
+                    syncConfigToSheet(updated);
+                  }} onUpdateShopName={(o, n) => {
+                    const updated = { ...state, favorites: state.favorites.map(f => f.shopName === o ? { ...f, shopName: n } : f) };
+                    setState(updated);
+                    syncConfigToSheet(updated);
+                  }} />
                 </div>
              )}
           </div>
@@ -222,19 +373,19 @@ const App: React.FC = () => {
 
       {/* Mobile Bottom Navigation */}
       <div className="md:hidden fixed bottom-6 left-6 right-6 h-20 bg-white/90 backdrop-blur-xl border border-slate-200 shadow-2xl rounded-[2.5rem] flex items-center justify-around px-6 z-50">
-        <button onClick={() => { setActiveTab('dashboard'); setIsUnlocked(false); }} className={`flex flex-col items-center gap-1 p-2 rounded-2xl transition-all ${activeTab === 'dashboard' ? 'text-indigo-600 scale-110' : 'text-slate-400'}`}>
+        <button onClick={() => setActiveTab('dashboard')} className={`flex flex-col items-center gap-1 p-2 rounded-2xl transition-all ${activeTab === 'dashboard' ? 'text-indigo-600 scale-110' : 'text-slate-400'}`}>
           <span className="text-2xl">🏠</span>
           <span className="text-[10px] font-black uppercase tracking-tighter">Trang chủ</span>
         </button>
-        <button onClick={() => { setActiveTab('input'); setIsUnlocked(false); }} className={`flex flex-col items-center gap-1 p-2 rounded-2xl transition-all ${activeTab === 'input' ? 'text-indigo-600 scale-110' : 'text-slate-400'}`}>
+        <button onClick={() => setActiveTab('input')} className={`flex flex-col items-center gap-1 p-2 rounded-2xl transition-all ${activeTab === 'input' ? 'text-indigo-600 scale-110' : 'text-slate-400'}`}>
           <span className="text-2xl">➕</span>
           <span className="text-[10px] font-black uppercase tracking-tighter">Ghi chép</span>
         </button>
-        <button onClick={() => { setActiveTab('history'); setIsUnlocked(false); }} className={`flex flex-col items-center gap-1 p-2 rounded-2xl transition-all ${activeTab === 'history' ? 'text-indigo-600 scale-110' : 'text-slate-400'}`}>
+        <button onClick={() => setActiveTab('history')} className={`flex flex-col items-center gap-1 p-2 rounded-2xl transition-all ${activeTab === 'history' ? 'text-indigo-600 scale-110' : 'text-slate-400'}`}>
           <span className="text-2xl">📊</span>
           <span className="text-[10px] font-black uppercase tracking-tighter">Lịch sử</span>
         </button>
-        <button onClick={() => { setActiveTab('settings'); }} className={`flex flex-col items-center gap-1 p-2 rounded-2xl transition-all ${activeTab === 'settings' ? 'text-indigo-600 scale-110' : 'text-slate-400'}`}>
+        <button onClick={() => setActiveTab('settings')} className={`flex flex-col items-center gap-1 p-2 rounded-2xl transition-all ${activeTab === 'settings' ? 'text-indigo-600 scale-110' : 'text-slate-400'}`}>
           <span className="text-2xl">⚙️</span>
           <span className="text-[10px] font-black uppercase tracking-tighter">Cấu hình</span>
         </button>
