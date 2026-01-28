@@ -17,6 +17,8 @@ const STORAGE_KEY = 'spendwise_data_v12';
 // URL Google Sheet Web App đã được nhúng trực tiếp
 const SHEET_URL = 'https://script.google.com/macros/s/AKfycby16fHNP_5odsuRdW6L1j4Lyc-FYNR05bPlnqU1yUbzCOqSC6HqmlAJJ87eLUHBolGyRw/exec';
 
+const isDebtWallet = (w: Wallet) => w.id.includes('debt') || w.name.toLowerCase().includes('nợ');
+
 const App: React.FC = () => {
   const [state, setState] = useState<AppState>(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -177,6 +179,11 @@ const App: React.FC = () => {
   };
 
   const isDefaultPass = state.settingsPassword === DEFAULT_PASSWORD;
+  
+  // Tính tổng tài sản (chỉ tính các ví KHÔNG PHẢI là nợ)
+  const totalAssets = state.wallets
+    .filter(w => !isDebtWallet(w))
+    .reduce((sum, w) => sum + w.balance, 0);
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 selection:bg-indigo-100 selection:text-indigo-700 pb-24 md:pb-0">
@@ -206,8 +213,8 @@ const App: React.FC = () => {
           </nav>
           <div className="flex items-center gap-3">
              <div className="hidden lg:flex flex-col items-end mr-4">
-                <span className="text-[10px] font-black text-slate-400 uppercase">Tài sản</span>
-                <span className="text-sm font-black text-slate-700">{state.wallets.reduce((a,b)=>a+b.balance,0).toLocaleString('vi-VN')}₫</span>
+                <span className="text-[10px] font-black text-slate-400 uppercase">Tài sản hiện có</span>
+                <span className="text-sm font-black text-slate-700">{totalAssets.toLocaleString('vi-VN')}₫</span>
              </div>
              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${isFetching ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'}`}>
                 {isFetching ? (
