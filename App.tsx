@@ -13,13 +13,13 @@ import { CategoryManager } from './components/CategoryManager';
 import { syncToSheet, fetchFromSheet } from './services/sheetService';
 
 const DEFAULT_PASSWORD = '123456';
+const STORAGE_KEY = 'spendwise_data_v12';
 
 const App: React.FC = () => {
   const [state, setState] = useState<AppState>(() => {
-    const saved = localStorage.getItem('spendwise_data_v11');
+    const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       const parsed = JSON.parse(saved);
-      // Đảm bảo luôn có mật khẩu, nếu chưa có thì dùng mặc định
       if (!parsed.settingsPassword) parsed.settingsPassword = DEFAULT_PASSWORD;
       return parsed;
     }
@@ -41,6 +41,7 @@ const App: React.FC = () => {
   const [newWalletIcon, setNewWalletIcon] = useState('💳');
   const [isSyncing, setIsSyncing] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
+  const [hasInitialPulled, setHasInitialPulled] = useState(false);
   
   // Bảo mật
   const [isUnlocked, setIsUnlocked] = useState(false);
@@ -51,34 +52,50 @@ const App: React.FC = () => {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
+  // Luôn lưu trạng thái mới nhất vào LocalStorage
   useEffect(() => {
-    localStorage.setItem('spendwise_data_v11', JSON.stringify(state));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [state]);
 
   const pullDataFromSheet = useCallback(async (silent = false) => {
-    if (!state.googleSheetUrl) return;
+    if (!state.googleSheetUrl || !state.googleSheetUrl.startsWith('https://script.google.com')) {
+      if (!silent) alert("Vui lòng cấu hình URL Web App hợp lệ trong phần Cài đặt!");
+      return;
+    }
+
     setIsFetching(true);
-    const data = await fetchFromSheet(state.googleSheetUrl);
-    setIsFetching(false);
-    if (data) {
-      setState(prev => ({
-        ...prev,
-        wallets: Array.isArray(data.wallets) && data.wallets.length > 0 ? data.wallets : prev.wallets,
-        categories: Array.isArray(data.categories) && data.categories.length > 0 ? data.categories : prev.categories,
-        favorites: Array.isArray(data.favorites) ? data.favorites : prev.favorites,
-        transactions: Array.isArray(data.transactions) ? data.transactions : prev.transactions,
-        settingsPassword: data.settingsPassword || prev.settingsPassword || DEFAULT_PASSWORD
-      }));
-      if (!silent) alert(`Đồng bộ dữ liệu từ Sheet thành công!`);
+    try {
+      const data = await fetchFromSheet(state.googleSheetUrl);
+      if (data && !data.error) {
+        setState(prev => ({
+          ...prev,
+          wallets: (Array.isArray(data.wallets) && data.wallets.length > 0) ? data.wallets : prev.wallets,
+          categories: (Array.isArray(data.categories) && data.categories.length > 0) ? data.categories : prev.categories,
+          favorites: Array.isArray(data.favorites) ? data.favorites : prev.favorites,
+          transactions: Array.isArray(data.transactions) ? data.transactions : prev.transactions,
+          settingsPassword: data.settingsPassword || prev.settingsPassword || DEFAULT_PASSWORD
+        }));
+        if (!silent) alert(`Đã đồng bộ dữ liệu mới nhất từ Google Sheet!`);
+      } else if (!silent) {
+        alert("Không thể lấy dữ liệu. Hãy kiểm tra lại URL Web App hoặc quyền truy cập của Sheet.");
+      }
+    } catch (err) {
+      console.error("Fetch error:", err);
+      if (!silent) alert("Lỗi kết nối đến Google Sheet.");
+    } finally {
+      setIsFetching(false);
+      setHasInitialPulled(true);
     }
   }, [state.googleSheetUrl]);
 
+  // Tự động load dữ liệu khi vừa mở App
   useEffect(() => {
-    if (state.googleSheetUrl) {
-      const timer = setTimeout(() => pullDataFromSheet(true), 500);
+    if (state.googleSheetUrl && !hasInitialPulled) {
+      // Delay nhẹ để đảm bảo UI load xong
+      const timer = setTimeout(() => pullDataFromSheet(true), 800);
       return () => clearTimeout(timer);
     }
-  }, []);
+  }, [state.googleSheetUrl, hasInitialPulled, pullDataFromSheet]);
 
   const syncConfigToSheet = async (currentState: AppState) => {
     if (!currentState.googleSheetUrl) return;
@@ -169,6 +186,7 @@ const App: React.FC = () => {
         }} />
       )}
 
+      {/* Header */}
       <header className="bg-white/80 backdrop-blur-md border-b border-slate-100 sticky top-0 z-[60]">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <div className="flex items-center gap-3 cursor-pointer" onClick={() => setActiveTab('dashboard')}>
@@ -186,11 +204,28 @@ const App: React.FC = () => {
             ))}
           </nav>
           <div className="flex items-center gap-3">
-             <div className="hidden lg:flex flex-col items-end">
-                <span className="text-[10px] font-black text-slate-400 uppercase">Số dư tổng</span>
+             <div className="hidden lg:flex flex-col items-end mr-4">
+                <span className="text-[10px] font-black text-slate-400 uppercase">Tài sản</span>
                 <span className="text-sm font-black text-slate-700">{state.wallets.reduce((a,b)=>a+b.balance,0).toLocaleString('vi-VN')}₫</span>
              </div>
-             {isFetching && <div className="w-8 h-8 flex items-center justify-center bg-indigo-50 text-indigo-600 rounded-full animate-spin">🔄</div>}
+             <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${isFetching ? 'bg-amber-50 text-amber-600' : state.googleSheetUrl ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                {isFetching ? (
+                  <>
+                    <span className="w-2 h-2 bg-amber-500 rounded-full animate-ping"></span>
+                    Đang nạp dữ liệu...
+                  </>
+                ) : state.googleSheetUrl ? (
+                  <>
+                    <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>
+                    Đã kết nối Cloud
+                  </>
+                ) : (
+                  <>
+                    <span className="w-2 h-2 bg-slate-300 rounded-full"></span>
+                    Chưa cấu hình Cloud
+                  </>
+                )}
+             </div>
           </div>
         </div>
       </header>
@@ -220,8 +255,8 @@ const App: React.FC = () => {
               {!isUnlocked ? (
                 <div className="max-w-md mx-auto mt-20 p-8 bg-white rounded-[2rem] shadow-2xl border border-slate-100 text-center animate-in zoom-in-95 duration-300">
                   <div className="w-20 h-20 bg-indigo-50 rounded-3xl flex items-center justify-center text-4xl mx-auto mb-6">🔒</div>
-                  <h2 className="text-xl font-black text-slate-800 mb-2">Khu vực hạn chế</h2>
-                  <p className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-8">Nhập mật khẩu để tiếp tục</p>
+                  <h2 className="text-xl font-black text-slate-800 mb-2">Khu vực bảo mật</h2>
+                  <p className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-8">Nhập mật khẩu để cấu hình hệ thống</p>
                   <form onSubmit={handleUnlock} className="space-y-4">
                     <input autoFocus type="password" value={passwordInput} onChange={e => setPasswordInput(e.target.value)} className={`w-full px-6 py-4 bg-slate-50 border rounded-2xl text-center text-xl font-black outline-none transition-all ${passwordError ? 'border-red-500 ring-4 ring-red-50' : 'border-slate-100 focus:ring-4 focus:ring-indigo-50'}`} placeholder="••••••" />
                     {passwordError && <p className="text-xs text-red-500 font-bold">Mật khẩu không chính xác!</p>}
@@ -248,25 +283,24 @@ const App: React.FC = () => {
                 </div>
               ) : (
                 <div className="space-y-10 animate-in fade-in duration-500">
-                  <div className="bg-white rounded-3xl p-8 shadow-sm border border-slate-100">
-                    <h2 className="text-xl font-black text-slate-800 mb-6 flex items-center gap-3"><span className="text-2xl">🔐</span> Bảo mật</h2>
-                    <div className="flex flex-col md:flex-row gap-6 items-end">
-                      <div className="flex-1 w-full">
-                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Mật khẩu hiện tại</label>
-                        <div className="px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold text-slate-400">•••••• (Đã được bảo vệ)</div>
-                      </div>
-                      <button onClick={() => { if(confirm("Bạn muốn đổi mật khẩu?")) setState(p => ({...p, settingsPassword: DEFAULT_PASSWORD})); }} className="px-8 py-3.5 bg-indigo-50 text-indigo-600 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-100 transition-all">Đặt lại mật khẩu</button>
-                    </div>
-                  </div>
-
+                  {/* Sync Settings Section - Moved to top for easy setup */}
                   <div className="bg-indigo-600 rounded-3xl p-8 shadow-xl shadow-indigo-100 text-white overflow-hidden relative">
                     <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-16 translate-x-16 blur-2xl"></div>
-                    <h2 className="text-xl font-black mb-2 flex items-center gap-3"><span className="text-2xl">📊</span> Đồng bộ Google Sheet</h2>
+                    <h2 className="text-xl font-black mb-2 flex items-center gap-3"><span className="text-2xl">📊</span> Cấu hình Google Sheet</h2>
+                    <p className="text-indigo-100 text-xs mb-6 font-medium">URL này sẽ được ghi nhớ mãi mãi trên thiết bị này.</p>
                     <div className="space-y-4">
-                      <input type="text" value={state.googleSheetUrl} onChange={(e) => setState(prev => ({ ...prev, googleSheetUrl: e.target.value }))} placeholder="URL Web App" className="w-full px-5 py-4 bg-white/10 border border-white/20 rounded-2xl text-sm font-bold placeholder:text-white/30 focus:bg-white/20 outline-none transition-all" />
+                      <div className="relative">
+                        <input 
+                          type="text" 
+                          value={state.googleSheetUrl} 
+                          onChange={(e) => setState(prev => ({ ...prev, googleSheetUrl: e.target.value }))} 
+                          placeholder="Dán URL Web App của bạn tại đây..." 
+                          className="w-full px-5 py-4 bg-white/10 border border-white/20 rounded-2xl text-sm font-bold placeholder:text-white/30 focus:bg-white/20 outline-none transition-all" 
+                        />
+                      </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <button onClick={async () => {
-                          if (!state.googleSheetUrl) { alert("Vui lòng dán URL!"); return; }
+                          if (!state.googleSheetUrl) { alert("Vui lòng dán URL Web App!"); return; }
                           setIsSyncing(true);
                           const success = await syncToSheet(state.googleSheetUrl, {
                             action: 'sync_all',
@@ -282,10 +316,25 @@ const App: React.FC = () => {
                             }))
                           });
                           setIsSyncing(false); 
-                          if(success) alert("Đã đồng bộ toàn bộ dữ liệu thành công!");
-                        }} disabled={isSyncing || isFetching} className="py-4 bg-white text-indigo-600 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg disabled:opacity-50">{isSyncing ? 'Đang gửi...' : 'Đẩy toàn bộ lên Sheet'}</button>
-                        <button onClick={() => pullDataFromSheet(false)} disabled={isSyncing || isFetching} className="py-4 bg-indigo-500 text-white border border-indigo-400 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg disabled:opacity-50">{isFetching ? 'Đang tải...' : 'Tải toàn bộ từ Sheet'}</button>
+                          if(success) alert("Đã lưu và đồng bộ toàn bộ dữ liệu lên Google Sheet!");
+                        }} disabled={isSyncing || isFetching} className="py-4 bg-white text-indigo-600 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg disabled:opacity-50">
+                          {isSyncing ? 'Đang gửi...' : 'Lưu & Đẩy dữ liệu lên Cloud'}
+                        </button>
+                        <button onClick={() => pullDataFromSheet(false)} disabled={isSyncing || isFetching} className="py-4 bg-indigo-500 text-white border border-indigo-400 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg disabled:opacity-50">
+                          {isFetching ? 'Đang tải...' : 'Tải lại dữ liệu từ Cloud'}
+                        </button>
                       </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-3xl p-8 shadow-sm border border-slate-100">
+                    <h2 className="text-xl font-black text-slate-800 mb-6 flex items-center gap-3"><span className="text-2xl">🔐</span> Bảo mật</h2>
+                    <div className="flex flex-col md:flex-row gap-6 items-end">
+                      <div className="flex-1 w-full">
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Mật khẩu hiện tại</label>
+                        <div className="px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold text-slate-400">•••••• (Đã được bảo vệ)</div>
+                      </div>
+                      <button onClick={() => { if(confirm("Bạn muốn đổi mật khẩu?")) setState(p => ({...p, settingsPassword: DEFAULT_PASSWORD})); }} className="px-8 py-3.5 bg-indigo-50 text-indigo-600 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-100 transition-all">Đặt lại mật khẩu</button>
                     </div>
                   </div>
 
