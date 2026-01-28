@@ -102,6 +102,9 @@ function doPost(e) {
     const data = JSON.parse(e.postData.contents);
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     
+    // Đảm bảo luôn có Header đúng chuẩn
+    const TX_HEADERS = ['ID', 'Thời gian', 'Số tiền', 'Loại', 'Danh mục', 'Ví', 'Ghi chú', 'CategoryID', 'WalletID', 'Icon', 'ToWalletID', 'ToWalletName'];
+
     if (data.action === 'sync_all') {
       const walletSheet = ss.getSheetByName('Vi') || ss.insertSheet('Vi');
       walletSheet.clear();
@@ -121,7 +124,7 @@ function doPost(e) {
       if (data.transactions) {
         const txSheet = ss.getSheetByName('GiaoDich') || ss.insertSheet('GiaoDich');
         txSheet.clear();
-        txSheet.appendRow(['ID', 'Thời gian', 'Số tiền', 'Loại', 'Danh mục', 'Ví', 'Ghi chú', 'CategoryID', 'WalletID', 'Icon', 'ToWalletID', 'ToWalletName']);
+        txSheet.appendRow(TX_HEADERS);
         data.transactions.forEach(t => {
           txSheet.appendRow([t.id, t.date, t.amount, t.type, t.categoryName, t.walletName, t.note, t.categoryId, t.walletId, t.icon, t.toWalletId || "", t.toWalletName || ""]);
         });
@@ -138,6 +141,10 @@ function doPost(e) {
     
     if (data.action === 'add_transaction') {
       const txSheet = ss.getSheetByName('GiaoDich') || ss.insertSheet('GiaoDich');
+      // Nếu sheet mới tạo (chưa có header), thêm header
+      if (txSheet.getLastRow() === 0) {
+        txSheet.appendRow(TX_HEADERS);
+      }
       const t = data.transaction;
       txSheet.appendRow([t.id, t.date, t.amount, t.type, t.categoryName, t.walletName, t.note, t.categoryId, t.walletId, t.icon, t.toWalletId || "", t.toWalletName || ""]);
       updateWalletBalance(ss, t.walletId, data.newBalance);
