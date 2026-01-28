@@ -10,6 +10,7 @@ import { GreetingHeader } from './components/GreetingHeader';
 import { FavoriteManager } from './components/FavoriteManager';
 import { PaymentModal } from './components/PaymentModal';
 import { CategoryManager } from './components/CategoryManager';
+import { WalletManager } from './components/WalletManager';
 import { syncToSheet, fetchFromSheet } from './services/sheetService';
 
 const DEFAULT_PASSWORD = '123456';
@@ -161,15 +162,13 @@ const App: React.FC = () => {
       const transaction: Transaction = { ...newT, id, date: paymentDate, categoryName: category?.name, walletName: wallet?.name };
       newTransactions = [...state.transactions, transaction];
       
-      // Nếu là trả nợ (category 10) và có toWalletId (ví nợ)
       if (newT.categoryId === '10' && newT.toWalletId) {
         updatedWallets = state.wallets.map(w => {
-          if (w.id === transaction.walletId) return { ...w, balance: w.balance - transaction.amount }; // Trừ ví nguồn
-          if (w.id === newT.toWalletId) return { ...w, balance: w.balance + transaction.amount }; // Giảm nợ (tăng balance âm lên 0)
+          if (w.id === transaction.walletId) return { ...w, balance: w.balance - transaction.amount };
+          if (w.id === newT.toWalletId) return { ...w, balance: w.balance + transaction.amount };
           return w;
         });
         syncToSheet(SHEET_URL, { action: 'add_transaction', transaction, newBalance: updatedWallets.find(w => w.id === transaction.walletId)?.balance });
-        // Đồng bộ cả ví nợ
         const debtW = updatedWallets.find(w => w.id === newT.toWalletId);
         if (debtW) {
           syncToSheet(SHEET_URL, { action: 'update_wallet_balance', walletId: debtW.id, balance: debtW.balance });
@@ -195,7 +194,7 @@ const App: React.FC = () => {
             amount: amt, 
             categoryId: '10', 
             walletId: sw, 
-            toWalletId: selectedDebtWallet.id, // Truyền thêm ID ví nợ để xử lý logic đồng thời
+            toWalletId: selectedDebtWallet.id,
             note: `Trả nợ ${selectedDebtWallet.name}`, 
             type: CategoryType.EXPENSE, 
             date: new Date().toISOString(), 
@@ -300,6 +299,27 @@ const App: React.FC = () => {
                       <span>🔒</span> Khóa & Thoát
                     </button>
                   </div>
+
+                  {/* Wallet Management */}
+                  <WalletManager 
+                    wallets={state.wallets} 
+                    onAdd={(newW, isDebt) => {
+                      const prefix = isDebt ? 'w-debt-' : 'w-';
+                      const updated = { ...state, wallets: [...state.wallets, { ...newW, id: prefix + Date.now() }] };
+                      setState(updated);
+                      syncConfigToSheet(updated);
+                    }} 
+                    onDelete={id => {
+                      const updated = { ...state, wallets: state.wallets.filter(w => w.id !== id) };
+                      setState(updated);
+                      syncConfigToSheet(updated);
+                    }} 
+                    onUpdate={(id, up) => {
+                      const updated = { ...state, wallets: state.wallets.map(w => w.id === id ? { ...w, ...up } : w) };
+                      setState(updated);
+                      syncConfigToSheet(updated);
+                    }} 
+                  />
 
                   <div className="bg-white rounded-3xl p-8 shadow-sm border border-slate-100">
                     <div className="flex justify-between items-center mb-6">
