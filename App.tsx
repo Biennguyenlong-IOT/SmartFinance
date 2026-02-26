@@ -20,6 +20,7 @@ const SHEET_URL = 'https://script.google.com/macros/s/AKfycby16fHNP_5odsuRdW6L1j
 
 const isDebtWallet = (w: Wallet) => w.id.includes('debt') || w.name.toLowerCase().includes('nợ');
 
+ HEAD
 // Hàm lọc trùng lặp theo ID
 function deduplicate<T extends { id: string }>(arr: T[]): T[] {
   if (!Array.isArray(arr)) return [];
@@ -31,6 +32,7 @@ function deduplicate<T extends { id: string }>(arr: T[]): T[] {
   });
 }
 
+85e4e8052c808e91e17653b9e12bb8c1a48d9261
 const App: React.FC = () => {
   const [state, setState] = useState<AppState>(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -85,10 +87,17 @@ const App: React.FC = () => {
       if (data && !data.error) {
         setState(prev => ({
           ...prev,
+HEAD
           wallets: (Array.isArray(data.wallets) && data.wallets.length > 0) ? deduplicate(data.wallets) : prev.wallets,
           categories: (Array.isArray(data.categories) && data.categories.length > 0) ? deduplicate(data.categories) : prev.categories,
           favorites: Array.isArray(data.favorites) ? deduplicate(data.favorites) : prev.favorites,
           transactions: Array.isArray(data.transactions) ? deduplicate(data.transactions) : prev.transactions,
+
+          wallets: (Array.isArray(data.wallets) && data.wallets.length > 0) ? data.wallets : prev.wallets,
+          categories: (Array.isArray(data.categories) && data.categories.length > 0) ? data.categories : prev.categories,
+          favorites: Array.isArray(data.favorites) ? data.favorites : prev.favorites,
+          transactions: Array.isArray(data.transactions) ? data.transactions : prev.transactions,
+85e4e8052c808e91e17653b9e12bb8c1a48d9261
           settingsPassword: data.settingsPassword || prev.settingsPassword || DEFAULT_PASSWORD
         }));
         setLastSynced(new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }));
@@ -248,7 +257,15 @@ const App: React.FC = () => {
               onDebtClick={setSelectedDebtWallet} 
               onViewLedger={setViewingLedgerWallet}
             />
+ HEAD
             <ExpenseCharts transactions={state.transactions} categories={state.categories} />
+
+            <ExpenseCharts 
+              transactions={state.transactions} 
+              categories={state.categories} 
+              wallets={state.wallets}
+            />
+85e4e8052c808e91e17653b9e12bb8c1a48d9261
             <RecentTransactions transactions={state.transactions} categories={state.categories} wallets={state.wallets} onViewAll={() => setActiveTab('history')} />
           </div>
         )}
@@ -258,6 +275,7 @@ const App: React.FC = () => {
               <button onClick={() => setActiveTab('dashboard')} className="w-10 h-10 bg-white rounded-xl border border-slate-200 flex items-center justify-center text-slate-400 hover:text-indigo-600">←</button>
               <h2 className="text-2xl font-black text-slate-800 tracking-tight">Thêm giao dịch</h2>
             </div>
+HEAD
             <TransactionForm 
               categories={state.categories} 
               wallets={state.wallets} 
@@ -274,6 +292,9 @@ const App: React.FC = () => {
                 syncConfigToSheet(updated);
               }}
             />
+
+            <TransactionForm categories={state.categories} wallets={state.wallets} favorites={state.favorites} onAdd={addTransaction} />
+ 85e4e8052c808e91e17653b9e12bb8c1a48d9261
           </div>
         )}
         {activeTab === 'history' && <RecentTransactions transactions={state.transactions} categories={state.categories} wallets={state.wallets} />}

@@ -1,12 +1,18 @@
 {
+HEAD
   "name": "spendwise-smart-manager",
+
+  "name": "quản-lý-chi-tiêu-thông-minh",
+85e4e8052c808e91e17653b9e12bb8c1a48d9261
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "lint": "tsc --noEmit",
+ HEAD
+
+ 85e4e8052c808e91e17653b9e12bb8c1a48d9261
     "preview": "vite preview"
   },
   "dependencies": {
@@ -22,4 +28,5 @@
     "vite": "^6.2.0"
   }
 }
-
+HEAD
+ 85e4e8052c808e91e17653b9e12bb8c1a48d9261
