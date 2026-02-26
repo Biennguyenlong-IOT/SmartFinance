@@ -11,9 +11,7 @@ export interface Category {
   icon: string;
   type: CategoryType;
   color: string;
-
   budget?: number;
-
 }
 
 export interface Wallet {
@@ -22,6 +20,10 @@ export interface Wallet {
   balance: number;
   icon: string;
   color: string;
+  isSavings?: boolean;
+  startDate?: string;
+  interestRate?: number;
+  termMonths?: number;
 }
 
 export interface FavoriteItem {

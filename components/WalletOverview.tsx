@@ -7,11 +7,12 @@ interface Props {
   wallets: Wallet[];
   onDebtClick: (wallet: Wallet) => void;
   onViewLedger: (wallet: Wallet) => void;
+  onSavingsClick: (wallet: Wallet) => void;
 }
 
 const isDebtWallet = (w: Wallet) => w.id.includes('debt') || w.name.toLowerCase().includes('nợ');
 
-export const WalletOverview: React.FC<Props> = ({ wallets, onDebtClick, onViewLedger }) => {
+export const WalletOverview: React.FC<Props> = ({ wallets, onDebtClick, onViewLedger, onSavingsClick }) => {
   const assets = wallets.filter(w => !isDebtWallet(w));
   const debts = wallets.filter(w => isDebtWallet(w));
   
@@ -39,12 +40,23 @@ export const WalletOverview: React.FC<Props> = ({ wallets, onDebtClick, onViewLe
         
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {assets.map(wallet => (
-            <div key={wallet.id} className="p-5 bg-slate-50 border border-slate-100 rounded-2xl hover:bg-white hover:shadow-lg hover:border-indigo-100 transition-all group">
-              <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-2xl shadow-sm border border-slate-100 mb-3 group-hover:scale-110 transition-transform">
+            <div 
+              key={wallet.id} 
+              onClick={() => wallet.isSavings && onSavingsClick(wallet)}
+              className={`p-5 border rounded-2xl transition-all group ${wallet.isSavings ? 'bg-emerald-50/30 border-emerald-100 hover:bg-emerald-50 hover:border-emerald-300 cursor-pointer' : 'bg-slate-50 border-slate-100 hover:bg-white hover:shadow-lg hover:border-indigo-100'}`}
+            >
+              <div className={`w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-2xl shadow-sm border mb-3 group-hover:scale-110 transition-transform ${wallet.isSavings ? 'border-emerald-100' : 'border-slate-100'}`}>
                 {wallet.icon}
               </div>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">{wallet.name}</p>
-              <p className="text-lg font-black text-slate-800">{formatCurrency(wallet.balance)}<span className="text-[10px] ml-0.5">₫</span></p>
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">{wallet.name}</p>
+                  <p className="text-lg font-black text-slate-800">{formatCurrency(wallet.balance)}<span className="text-[10px] ml-0.5">₫</span></p>
+                </div>
+                {wallet.isSavings && (
+                  <span className="text-[8px] font-black text-emerald-600 bg-white border border-emerald-100 px-1.5 py-0.5 rounded-md uppercase tracking-tighter">Tiết kiệm</span>
+                )}
+              </div>
             </div>
           ))}
         </div>

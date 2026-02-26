@@ -10,6 +10,7 @@ import { GreetingHeader } from './components/GreetingHeader';
 import { FavoriteManager } from './components/FavoriteManager';
 import { PaymentModal } from './components/PaymentModal';
 import { DebtLedgerModal } from './components/DebtLedgerModal';
+import { SavingsDetailModal } from './components/SavingsDetailModal';
 import { CategoryManager } from './components/CategoryManager';
 import { WalletManager } from './components/WalletManager';
 import { syncToSheet, fetchFromSheet } from './services/sheetService';
@@ -53,6 +54,7 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'input' | 'history' | 'settings'>('dashboard');
   const [selectedDebtWallet, setSelectedDebtWallet] = useState<Wallet | null>(null);
   const [viewingLedgerWallet, setViewingLedgerWallet] = useState<Wallet | null>(null);
+  const [viewingSavingsWallet, setViewingSavingsWallet] = useState<Wallet | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
   const [lastSynced, setLastSynced] = useState<string | null>(null);
@@ -231,6 +233,13 @@ const App: React.FC = () => {
         />
       )}
 
+      {viewingSavingsWallet && (
+        <SavingsDetailModal 
+          wallet={viewingSavingsWallet} 
+          onClose={() => setViewingSavingsWallet(null)} 
+        />
+      )}
+
       <button onClick={() => setActiveTab('input')} className={`fixed bottom-24 right-6 md:bottom-10 md:right-10 w-16 h-16 bg-indigo-600 text-white rounded-full shadow-2xl flex items-center justify-center text-3xl z-50 transition-all hover:scale-110 active:scale-95 ${activeTab === 'input' ? 'hidden' : 'flex'}`}>➕</button>
 
       <header className="bg-white/80 backdrop-blur-md border-b border-slate-100 sticky top-0 z-[60]">
@@ -267,6 +276,7 @@ const App: React.FC = () => {
               wallets={state.wallets} 
               onDebtClick={setSelectedDebtWallet} 
               onViewLedger={setViewingLedgerWallet}
+              onSavingsClick={setViewingSavingsWallet}
             />
             <ExpenseCharts transactions={state.transactions} categories={state.categories} />
             <RecentTransactions transactions={state.transactions} categories={state.categories} wallets={state.wallets} onViewAll={() => setActiveTab('history')} />

@@ -21,6 +21,10 @@ export const WalletManager: React.FC<Props> = ({ wallets, onAdd, onDelete, onUpd
   const [newBalance, setNewBalance] = useState('');
   const [newIcon, setNewIcon] = useState('💵');
   const [isDebt, setIsDebt] = useState(false);
+  const [isSavings, setIsSavings] = useState(false);
+  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [interestRate, setInterestRate] = useState('');
+  const [termMonths, setTermMonths] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,10 +33,17 @@ export const WalletManager: React.FC<Props> = ({ wallets, onAdd, onDelete, onUpd
       name: newName,
       balance: parseInputNumber(newBalance),
       icon: newIcon,
-      color: isDebt ? '#f43f5e' : '#6366f1'
+      color: isDebt ? '#f43f5e' : isSavings ? '#10b981' : '#6366f1',
+      isSavings,
+      startDate: isSavings ? startDate : undefined,
+      interestRate: isSavings ? parseFloat(interestRate) : undefined,
+      termMonths: isSavings ? parseInt(termMonths) : undefined
     }, isDebt);
     setNewName('');
     setNewBalance('');
+    setInterestRate('');
+    setTermMonths('');
+    setIsSavings(false);
     setIsAdding(false);
   };
 
@@ -77,7 +88,7 @@ export const WalletManager: React.FC<Props> = ({ wallets, onAdd, onDelete, onUpd
             </div>
           </div>
 
-          <div className="flex items-center gap-6">
+          <div className="flex flex-col md:flex-row gap-6">
             <div className="flex-1">
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">Biểu tượng</label>
               <div className="flex flex-wrap gap-2">
@@ -93,17 +104,63 @@ export const WalletManager: React.FC<Props> = ({ wallets, onAdd, onDelete, onUpd
                 ))}
               </div>
             </div>
-            <div className="flex flex-col items-center p-4 bg-white rounded-2xl border border-slate-200">
-               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Loại ví</label>
-               <button
-                type="button"
-                onClick={() => setIsDebt(!isDebt)}
-                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${isDebt ? 'bg-rose-500 text-white' : 'bg-slate-100 text-slate-500'}`}
-               >
-                 {isDebt ? '🚩 Ví Ghi Nợ' : '💰 Ví Tài Sản'}
-               </button>
+            <div className="flex flex-col gap-3 p-4 bg-white rounded-2xl border border-slate-200">
+               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Loại ví</label>
+               <div className="flex gap-2">
+                 <button
+                  type="button"
+                  onClick={() => { setIsDebt(!isDebt); if (!isDebt) setIsSavings(false); }}
+                  className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${isDebt ? 'bg-rose-500 text-white' : 'bg-slate-100 text-slate-500'}`}
+                 >
+                   {isDebt ? '🚩 Ví Ghi Nợ' : '💰 Ví Tài Sản'}
+                 </button>
+                 {!isDebt && (
+                   <button
+                    type="button"
+                    onClick={() => setIsSavings(!isSavings)}
+                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${isSavings ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-500'}`}
+                   >
+                     {isSavings ? '🏦 Tiết kiệm' : '🏦 Thường'}
+                   </button>
+                 )}
+               </div>
             </div>
           </div>
+
+          {isSavings && !isDebt && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-6 bg-emerald-50/50 rounded-2xl border border-emerald-100 animate-in fade-in duration-300">
+              <div>
+                <label className="block text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1.5 ml-1">Ngày mở sổ</label>
+                <input 
+                  type="date" 
+                  value={startDate} 
+                  onChange={e => setStartDate(e.target.value)} 
+                  className="w-full px-4 py-3 rounded-xl border-emerald-200 text-sm font-bold focus:ring-4 focus:ring-emerald-50 outline-none" 
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1.5 ml-1">Lãi suất (%/năm)</label>
+                <input 
+                  type="number" 
+                  step="0.1"
+                  value={interestRate} 
+                  onChange={e => setInterestRate(e.target.value)} 
+                  className="w-full px-4 py-3 rounded-xl border-emerald-200 text-sm font-bold focus:ring-4 focus:ring-emerald-50 outline-none" 
+                  placeholder="Ví dụ: 6.5" 
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1.5 ml-1">Kỳ hạn (tháng)</label>
+                <input 
+                  type="number" 
+                  value={termMonths} 
+                  onChange={e => setTermMonths(e.target.value)} 
+                  className="w-full px-4 py-3 rounded-xl border-emerald-200 text-sm font-bold focus:ring-4 focus:ring-emerald-50 outline-none" 
+                  placeholder="Ví dụ: 12" 
+                />
+              </div>
+            </div>
+          )}
 
           <button type="submit" className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-indigo-100 active:scale-[0.98] transition-all">
             Tạo ví mới
@@ -115,7 +172,7 @@ export const WalletManager: React.FC<Props> = ({ wallets, onAdd, onDelete, onUpd
         {wallets.map(wallet => {
           const isDebtWallet = wallet.id.includes('debt') || wallet.name.toLowerCase().includes('nợ');
           return (
-            <div key={wallet.id} className={`p-5 rounded-3xl border flex items-center gap-4 group transition-all ${isDebtWallet ? 'bg-rose-50/30 border-rose-100 hover:border-rose-300' : 'bg-slate-50 border-slate-100 hover:border-indigo-200 hover:bg-white'}`}>
+            <div key={wallet.id} className={`p-5 rounded-3xl border flex items-center gap-4 group transition-all ${isDebtWallet ? 'bg-rose-50/30 border-rose-100 hover:border-rose-300' : wallet.isSavings ? 'bg-emerald-50/30 border-emerald-100 hover:border-emerald-300' : 'bg-slate-50 border-slate-100 hover:border-indigo-200 hover:bg-white'}`}>
               {deletingId === wallet.id ? (
                 <div className="flex-1 flex items-center justify-between animate-in fade-in slide-in-from-right-2 duration-200">
                   <p className="text-[10px] font-black text-rose-600 uppercase">Xóa ví "{wallet.name}"?</p>
@@ -126,7 +183,7 @@ export const WalletManager: React.FC<Props> = ({ wallets, onAdd, onDelete, onUpd
                 </div>
               ) : (
                 <>
-                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shadow-sm border ${isDebtWallet ? 'bg-white border-rose-100' : 'bg-white border-slate-100'}`}>
+                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shadow-sm border ${isDebtWallet ? 'bg-white border-rose-100' : wallet.isSavings ? 'bg-white border-emerald-100' : 'bg-white border-slate-100'}`}>
                     {wallet.icon}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -136,9 +193,38 @@ export const WalletManager: React.FC<Props> = ({ wallets, onAdd, onDelete, onUpd
                       onChange={(e) => onUpdate(wallet.id, { name: e.target.value })}
                       className="w-full bg-transparent border-none focus:outline-none font-black text-slate-800 text-sm truncate"
                     />
-                    <p className={`text-[9px] font-black uppercase tracking-tighter ${isDebtWallet ? 'text-rose-500' : 'text-indigo-500'}`}>
-                      {isDebtWallet ? 'Khoản nợ' : 'Tài sản'}: {wallet.balance.toLocaleString('vi-VN')}₫
-                    </p>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <p className={`text-[9px] font-black uppercase tracking-tighter ${isDebtWallet ? 'text-rose-500' : wallet.isSavings ? 'text-emerald-500' : 'text-indigo-500'}`}>
+                        {isDebtWallet ? 'Khoản nợ' : wallet.isSavings ? 'Tiết kiệm' : 'Tài sản'}: {wallet.balance.toLocaleString('vi-VN')}₫
+                      </p>
+                      {wallet.isSavings && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-[8px] text-slate-300">|</span>
+                          <div className="flex items-center gap-1">
+                            <span className="text-[8px] font-bold text-slate-400">Lãi:</span>
+                            <input 
+                              type="number"
+                              step="0.1"
+                              value={wallet.interestRate || ''}
+                              onChange={(e) => onUpdate(wallet.id, { interestRate: parseFloat(e.target.value) || 0 })}
+                              className="w-10 bg-transparent border-none focus:outline-none text-[8px] font-black text-emerald-600"
+                            />
+                            <span className="text-[8px] font-bold text-slate-400">%</span>
+                          </div>
+                          <span className="text-[8px] text-slate-300">|</span>
+                          <div className="flex items-center gap-1">
+                            <span className="text-[8px] font-bold text-slate-400">Hạn:</span>
+                            <input 
+                              type="number"
+                              value={wallet.termMonths || ''}
+                              onChange={(e) => onUpdate(wallet.id, { termMonths: parseInt(e.target.value) || 0 })}
+                              className="w-8 bg-transparent border-none focus:outline-none text-[8px] font-black text-emerald-600"
+                            />
+                            <span className="text-[8px] font-bold text-slate-400">th</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <button 
                     onClick={() => setDeletingId(wallet.id)}
