@@ -31,11 +31,14 @@ export const FavoriteManager: React.FC<Props> = ({ favorites, categories, wallet
   const [isAdding, setIsAdding] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  // Filter only expense categories for favorites
+  const expenseCategories = categories.filter(c => c.type === 'EXPENSE');
+
   // New item form state
   const [newName, setNewName] = useState('');
   const [newPrice, setNewPrice] = useState('');
   const [newShop, setNewShop] = useState('');
-  const [newCategory, setNewCategory] = useState(categories[0]?.id || '');
+  const [newCategory, setNewCategory] = useState(expenseCategories[0]?.id || '');
   const [newWallet, setNewWallet] = useState(wallets[0]?.id || '');
   const [newIcon, setNewIcon] = useState(COMMON_ICONS[0]);
 
@@ -128,7 +131,7 @@ export const FavoriteManager: React.FC<Props> = ({ favorites, categories, wallet
             <div>
               <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Danh mục</label>
               <select value={newCategory} onChange={e => setNewCategory(e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs">
-                {categories.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
+                {expenseCategories.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
               </select>
             </div>
             <div>
