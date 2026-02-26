@@ -19,10 +19,7 @@ export const CategoryManager: React.FC<Props> = ({ categories, onAdd, onDelete, 
   const [newName, setNewName] = useState('');
   const [newIcon, setNewIcon] = useState('✨');
   const [newType, setNewType] = useState<CategoryType>(CategoryType.EXPENSE);
-<<<<<<< HEAD
   const [newBudget, setNewBudget] = useState('');
-=======
->>>>>>> 85e4e8052c808e91e17653b9e12bb8c1a48d9261
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,17 +28,11 @@ export const CategoryManager: React.FC<Props> = ({ categories, onAdd, onDelete, 
       name: newName,
       icon: newIcon,
       type: newType,
-<<<<<<< HEAD
       color: newType === CategoryType.EXPENSE ? '#f43f5e' : '#10b981',
       budget: newBudget ? parseFloat(newBudget.replace(/\./g, '')) : undefined
     });
     setNewName('');
     setNewBudget('');
-=======
-      color: newType === CategoryType.EXPENSE ? '#f43f5e' : '#10b981'
-    });
-    setNewName('');
->>>>>>> 85e4e8052c808e91e17653b9e12bb8c1a48d9261
     setIsAdding(false);
   };
 
@@ -101,7 +92,6 @@ export const CategoryManager: React.FC<Props> = ({ categories, onAdd, onDelete, 
                 </button>
               </div>
             </div>
-<<<<<<< HEAD
             <div>
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Ngân sách (Tùy chọn)</label>
               <input 
@@ -115,8 +105,6 @@ export const CategoryManager: React.FC<Props> = ({ categories, onAdd, onDelete, 
                 placeholder="Ví dụ: 5.000.000" 
               />
             </div>
-=======
->>>>>>> 85e4e8052c808e91e17653b9e12bb8c1a48d9261
           </div>
           <div>
             <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">Biểu tượng</label>
@@ -162,7 +150,6 @@ export const CategoryManager: React.FC<Props> = ({ categories, onAdd, onDelete, 
                     onChange={(e) => onUpdate(cat.id, { name: e.target.value })}
                     className="w-full bg-transparent border-none focus:outline-none font-bold text-slate-700 text-sm truncate"
                   />
-<<<<<<< HEAD
                   <div className="flex items-center gap-2">
                     <p className={`text-[8px] font-black uppercase tracking-tighter ${cat.type === CategoryType.EXPENSE ? 'text-rose-400' : 'text-emerald-500'}`}>
                       {cat.type === CategoryType.EXPENSE ? 'Chi tiêu' : 'Thu nhập'}
@@ -183,11 +170,6 @@ export const CategoryManager: React.FC<Props> = ({ categories, onAdd, onDelete, 
                       </div>
                     )}
                   </div>
-=======
-                  <p className={`text-[8px] font-black uppercase tracking-tighter ${cat.type === CategoryType.EXPENSE ? 'text-rose-400' : 'text-emerald-500'}`}>
-                    {cat.type === CategoryType.EXPENSE ? 'Chi tiêu' : 'Thu nhập'}
-                  </p>
->>>>>>> 85e4e8052c808e91e17653b9e12bb8c1a48d9261
                 </div>
                 <button 
                   onClick={() => initiateDelete(cat.id)}

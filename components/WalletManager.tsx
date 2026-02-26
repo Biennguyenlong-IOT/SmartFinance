@@ -154,8 +154,4 @@ export const WalletManager: React.FC<Props> = ({ wallets, onAdd, onDelete, onUpd
       </div>
     </div>
   );
-<<<<<<< HEAD
 };
-=======
-}; 
->>>>>>> 85e4e8052c808e91e17653b9e12bb8c1a48d9261

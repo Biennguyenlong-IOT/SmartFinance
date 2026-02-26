@@ -17,19 +17,13 @@ interface Props {
     icon?: string;
     toWalletId?: string;
   }) => void;
- HEAD
   onAddFavorite: (item: Omit<FavoriteItem, 'id'>) => void;
   onDeleteFavorite: (id: string) => void;
- 85e4e8052c808e91e17653b9e12bb8c1a48d9261
 }
 
 const QUICK_AMOUNTS = [10000, 20000, 50000, 100000, 200000, 500000];
 
- HEAD
 export const TransactionForm: React.FC<Props> = ({ categories, wallets, favorites, onAdd, onAddFavorite, onDeleteFavorite }) => {
-
-export const TransactionForm: React.FC<Props> = ({ categories, wallets, favorites, onAdd }) => {
- 85e4e8052c808e91e17653b9e12bb8c1a48d9261
   const [displayAmount, setDisplayAmount] = useState<string>('');
   const [type, setType] = useState<CategoryType>(CategoryType.EXPENSE);
   const [categoryId, setCategoryId] = useState<string>('');
@@ -39,16 +33,8 @@ export const TransactionForm: React.FC<Props> = ({ categories, wallets, favorite
   const assetWallets = useMemo(() => wallets.filter(w => !isDebtWallet(w)), [wallets]);
   const allWallets = wallets;
 
- HEAD
   // Xác định danh sách ví hiển thị: Chỉ hiện ví tài sản (không phải ví nợ)
   const displayWallets = assetWallets;
-
-  // Xác định danh sách ví hiển thị dựa trên loại giao dịch
-  const displayWallets = useMemo(() => {
-    if (type === CategoryType.EXPENSE) return allWallets;
-    return assetWallets;
-  }, [type, allWallets, assetWallets]);
- 85e4e8052c808e91e17653b9e12bb8c1a48d9261
 
   const [walletId, setWalletId] = useState<string>('');
   const [toWalletId, setToWalletId] = useState<string>('');
@@ -97,7 +83,6 @@ export const TransactionForm: React.FC<Props> = ({ categories, wallets, favorite
                          !isDebtWallet(selectedWallet) &&
                          selectedWallet.balance < numAmount;
 
- HEAD
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -123,24 +108,6 @@ export const TransactionForm: React.FC<Props> = ({ categories, wallets, favorite
     } finally {
       setIsSubmitting(false);
     }
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (numAmount <= 0 || (isInsufficient && type === CategoryType.TRANSFER)) return;
-    const selectedCategory = categories.find(c => c.id === categoryId);
-    onAdd({
-      amount: numAmount,
-      categoryId: type === CategoryType.TRANSFER ? '12' : categoryId,
-      walletId,
-      toWalletId: type === CategoryType.TRANSFER ? toWalletId : undefined,
-      note: note.trim() || (selectedCategory ? selectedCategory.name : ''),
-      type,
-      date: new Date().toISOString(),
-      icon: type === CategoryType.TRANSFER ? '🔄' : selectedCategory?.icon
-    });
-    setDisplayAmount('');
-    setNote('');
- 85e4e8052c808e91e17653b9e12bb8c1a48d9261
   };
 
   const handleQuickAmount = (amt: number) => {
@@ -272,7 +239,6 @@ export const TransactionForm: React.FC<Props> = ({ categories, wallets, favorite
             className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-medium outline-none focus:bg-white focus:ring-2 focus:ring-indigo-100 transition-all"
           />
 
- HEAD
           <div className="flex gap-3">
             {!isInsufficient && (
               <button
@@ -312,23 +278,10 @@ export const TransactionForm: React.FC<Props> = ({ categories, wallets, favorite
               </button>
             )}
           </div>
-
-          <button
-            type="submit"
-            disabled={numAmount <= 0}
-            className={`w-full py-5 rounded-2xl font-black text-sm uppercase tracking-widest text-white shadow-xl transition-all active:scale-[0.98] ${
-              numAmount <= 0 
-                ? 'bg-slate-200 text-slate-400 shadow-none' 
-                : (type === CategoryType.EXPENSE ? 'bg-rose-500' : type === CategoryType.INCOME ? 'bg-emerald-500' : 'bg-indigo-600')
-            }`}
-          >
-            Lưu giao dịch
-          </button>
- 85e4e8052c808e91e17653b9e12bb8c1a48d9261
         </form>
       </div>
 
-      {type CategoryType.EXPENSE && hasFavorites && (
+      {type === CategoryType.EXPENSE && hasFavorites && (
         <div className="bg-white rounded-[2rem] p-8 shadow-sm border border-slate-100">
           <div className="flex justify-between items-center mb-6">
              <h3 className="text-[10px] font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
@@ -340,11 +293,7 @@ export const TransactionForm: React.FC<Props> = ({ categories, wallets, favorite
               className="px-3 py-2 bg-slate-50 border border-slate-100 rounded-xl text-[10px] font-black text-slate-500 outline-none appearance-none"
             >
               <option value="default">Ví mặc định</option>
- HEAD
               {assetWallets.map(w => (
-
-              {allWallets.map(w => (
-85e4e8052c808e91e17653b9e12bb8c1a48d9261
                 <option key={w.id} value={w.id}>{w.icon} {w.name}</option>
               ))}
             </select>
@@ -356,7 +305,6 @@ export const TransactionForm: React.FC<Props> = ({ categories, wallets, favorite
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">{shop}</p>
                 <div className="grid grid-cols-2 gap-3">
                   {groupedFavorites[shop].map(fav => (
- HEAD
                     <div key={fav.id} className="relative group">
                       <button
                         onClick={() => {
@@ -381,20 +329,6 @@ export const TransactionForm: React.FC<Props> = ({ categories, wallets, favorite
                         ✕
                       </button>
                     </div>
-
-                    <button
-                      key={fav.id}
-                      onClick={() => {
-                        const wId = quickAddWalletId === 'default' ? fav.defaultWalletId : quickAddWalletId;
-                        onAdd({ amount: fav.price, categoryId: fav.categoryId, walletId: wId, note: `${fav.shopName}: ${fav.name}`, type: CategoryType.EXPENSE, date: new Date().toISOString(), icon: fav.icon });
-                      }}
-                      className="flex flex-col p-4 bg-slate-50 border border-slate-100 rounded-2xl hover:border-indigo-100 hover:bg-indigo-50/30 transition-all active:scale-[0.97] group text-left"
-                    >
-                      <span className="text-2xl mb-2">{fav.icon}</span>
-                      <p className="text-xs font-black text-slate-700 truncate">{fav.name}</p>
-                      <p className="text-[10px] font-bold text-indigo-500">{fav.price.toLocaleString('vi-VN')}₫</p>
-                    </button>
- 85e4e8052c808e91e17653b9e12bb8c1a48d9261
                   ))}
                 </div>
               </div>

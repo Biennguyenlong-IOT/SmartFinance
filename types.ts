@@ -11,10 +11,9 @@ export interface Category {
   icon: string;
   type: CategoryType;
   color: string;
-<<<<<<< HEAD
+
   budget?: number;
-=======
->>>>>>> 85e4e8052c808e91e17653b9e12bb8c1a48d9261
+
 }
 
 export interface Wallet {
