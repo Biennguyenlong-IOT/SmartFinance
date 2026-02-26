@@ -60,16 +60,18 @@ const App: React.FC = () => {
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [passwordInput, setPasswordInput] = useState('');
   const [passwordError, setPasswordError] = useState(false);
-  const [showPasswordChange, setShowPasswordChange] = useState(false);
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isResetting, setIsResetting] = useState(false);
+  const [resetInput, setResetInput] = useState('');
+  const [newPasswordInput, setNewPasswordInput] = useState('');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   useEffect(() => {
     if (activeTab !== 'settings') {
       setIsUnlocked(false);
       setPasswordInput('');
       setPasswordError(false);
-      setShowPasswordChange(false);
+      setIsChangingPassword(false);
+      setIsResetting(false);
     }
   }, [activeTab]);
 
@@ -282,26 +284,88 @@ const App: React.FC = () => {
              {!isUnlocked ? (
                 <div className="p-10 bg-white rounded-[2.5rem] shadow-2xl border border-slate-100 text-center animate-in zoom-in-95 duration-300">
                   <div className="w-20 h-20 bg-indigo-50 rounded-3xl flex items-center justify-center text-4xl mx-auto mb-6">🔒</div>
-                  <h2 className="text-2xl font-black text-slate-800 mb-2">Cấu hình bảo mật</h2>
-                  <form onSubmit={(e) => {
-                    e.preventDefault();
-                    if (passwordInput === state.settingsPassword) { setIsUnlocked(true); setPasswordError(false); }
-                    else { setPasswordError(true); setPasswordInput(''); }
-                  }} className="space-y-4 max-w-xs mx-auto">
-                    <input autoFocus type="password" value={passwordInput} onChange={e => setPasswordInput(e.target.value)} className={`w-full px-6 py-4 bg-slate-50 border rounded-2xl text-center text-2xl font-black outline-none transition-all ${passwordError ? 'border-red-500 ring-4 ring-red-50' : 'border-slate-200 focus:ring-4 focus:ring-indigo-50'}`} placeholder="••••••" />
-                    {passwordError && <p className="text-xs text-red-500 font-bold">Mật khẩu không đúng!</p>}
-                    <button type="submit" className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-indigo-100 hover:bg-indigo-700 active:scale-95">Xác thực</button>
-                  </form>
+                  <h2 className="text-2xl font-black text-slate-800 mb-2">{isResetting ? 'Khôi phục mật khẩu' : 'Cấu hình bảo mật'}</h2>
+                  
+                  {!isResetting ? (
+                    <form onSubmit={(e) => {
+                      e.preventDefault();
+                      if (passwordInput === state.settingsPassword) { setIsUnlocked(true); setPasswordError(false); }
+                      else { setPasswordError(true); setPasswordInput(''); }
+                    }} className="space-y-4 max-w-xs mx-auto">
+                      <input autoFocus type="password" value={passwordInput} onChange={e => setPasswordInput(e.target.value)} className={`w-full px-6 py-4 bg-slate-50 border rounded-2xl text-center text-2xl font-black outline-none transition-all ${passwordError ? 'border-red-500 ring-4 ring-red-50' : 'border-slate-200 focus:ring-4 focus:ring-indigo-50'}`} placeholder="••••••" />
+                      {passwordError && <p className="text-xs text-red-500 font-bold">Mật khẩu không đúng!</p>}
+                      <button type="submit" className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-indigo-100 hover:bg-indigo-700 active:scale-95">Xác thực</button>
+                      <button type="button" onClick={() => setIsResetting(true)} className="text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-indigo-600 transition-colors">Quên mật khẩu?</button>
+                    </form>
+                  ) : (
+                    <div className="space-y-6 max-w-sm mx-auto">
+                      <p className="text-xs text-slate-500 font-medium leading-relaxed">Để khôi phục, vui lòng nhập chính xác <b>URL Google Sheet</b> bạn đang dùng để đồng bộ dữ liệu.</p>
+                      <input 
+                        autoFocus 
+                        type="text" 
+                        value={resetInput} 
+                        onChange={e => setResetInput(e.target.value)} 
+                        className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold outline-none focus:ring-4 focus:ring-indigo-50" 
+                        placeholder="https://script.google.com/..." 
+                      />
+                      <div className="flex gap-3">
+                        <button onClick={() => setIsResetting(false)} className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black uppercase text-[10px] tracking-widest">Hủy</button>
+                        <button onClick={() => {
+                          if (resetInput.trim() === SHEET_URL) {
+                            const updated = { ...state, settingsPassword: DEFAULT_PASSWORD };
+                            setState(updated);
+                            localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+                            alert(`Mật khẩu đã được đặt lại về mặc định: ${DEFAULT_PASSWORD}`);
+                            setIsResetting(false);
+                            setResetInput('');
+                          } else {
+                            alert('URL Google Sheet không khớp! Vui lòng kiểm tra lại.');
+                          }
+                        }} className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-indigo-100">Xác nhận</button>
+                      </div>
+                    </div>
+                  )}
                 </div>
              ) : (
                 <div className="space-y-10 animate-in fade-in duration-500">
-                  <div className="flex justify-between items-center bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-6 rounded-3xl border border-slate-100 shadow-sm gap-4">
                     <div>
                        <h2 className="text-2xl font-black text-slate-800 leading-tight">Cấu hình hệ thống</h2>
                        <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Quản lý ví, danh mục và bảo mật</p>
                     </div>
-                    <button onClick={() => { setIsUnlocked(false); setPasswordInput(''); }} className="px-5 py-2.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-xl text-xs font-black uppercase border border-rose-200 transition-all">🔒 Khóa & Thoát</button>
+                    <div className="flex gap-2 w-full md:w-auto">
+                      <button onClick={() => setIsChangingPassword(!isChangingPassword)} className="flex-1 md:flex-none px-5 py-2.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-xl text-xs font-black uppercase border border-indigo-200 transition-all">🔑 Đổi Pass</button>
+                      <button onClick={() => { setIsUnlocked(false); setPasswordInput(''); setIsChangingPassword(false); }} className="flex-1 md:flex-none px-5 py-2.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-xl text-xs font-black uppercase border border-rose-200 transition-all">🔒 Khóa</button>
+                    </div>
                   </div>
+
+                  {isChangingPassword && (
+                    <div className="bg-white p-8 rounded-3xl border border-indigo-100 shadow-xl shadow-indigo-50 animate-in slide-in-from-top-4">
+                      <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-6">Đổi mật khẩu truy cập</h3>
+                      <div className="flex flex-col md:flex-row gap-4 items-end">
+                        <div className="flex-1 w-full">
+                          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Mật khẩu mới</label>
+                          <input 
+                            type="password" 
+                            value={newPasswordInput} 
+                            onChange={e => setNewPasswordInput(e.target.value)} 
+                            className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-lg font-black outline-none focus:ring-4 focus:ring-indigo-50" 
+                            placeholder="Nhập mã mới..." 
+                          />
+                        </div>
+                        <button onClick={() => {
+                          if (newPasswordInput.length < 4) { alert('Mật khẩu phải có ít nhất 4 ký tự!'); return; }
+                          const updated = { ...state, settingsPassword: newPasswordInput };
+                          setState(updated);
+                          localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+                          syncConfigToSheet(updated);
+                          alert('Đã đổi mật khẩu thành công!');
+                          setIsChangingPassword(false);
+                          setNewPasswordInput('');
+                        }} className="w-full md:w-auto px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg shadow-indigo-100 hover:bg-indigo-700 active:scale-95">Lưu mật khẩu</button>
+                      </div>
+                    </div>
+                  )}
                   <WalletManager wallets={state.wallets} onAdd={(newW, isDebt) => {
                       const prefix = isDebt ? 'w-debt-' : 'w-';
                       const updated = { ...state, wallets: [...state.wallets, { ...newW, id: prefix + Date.now() }] };
