@@ -19,7 +19,7 @@ const DEFAULT_PASSWORD = '123456';
 const STORAGE_KEY = 'spendwise_data_v12';
 const SHEET_URL = 'https://script.google.com/macros/s/AKfycby16fHNP_5odsuRdW6L1j4Lyc-FYNR05bPlnqU1yUbzCOqSC6HqmlAJJ87eLUHBolGyRw/exec';
 
-const isDebtWallet = (w: Wallet) => w.id.includes('debt') || w.name.toLowerCase().includes('nợ');
+const isDebtWallet = (w: Wallet) => w.id.includes('debt') || (typeof w.name === 'string' && w.name.toLowerCase().includes('nợ'));
 
 // Hàm lọc trùng lặp theo ID
 function deduplicate<T extends { id: string }>(arr: T[]): T[] {

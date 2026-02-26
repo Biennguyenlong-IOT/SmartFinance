@@ -10,7 +10,7 @@ interface Props {
   onSavingsClick: (wallet: Wallet) => void;
 }
 
-const isDebtWallet = (w: Wallet) => w.id.includes('debt') || w.name.toLowerCase().includes('nợ');
+const isDebtWallet = (w: Wallet) => w.id.includes('debt') || (typeof w.name === 'string' && w.name.toLowerCase().includes('nợ'));
 
 export const WalletOverview: React.FC<Props> = ({ wallets, onDebtClick, onViewLedger, onSavingsClick }) => {
   const assets = wallets.filter(w => !isDebtWallet(w));

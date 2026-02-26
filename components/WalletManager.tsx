@@ -20,8 +20,7 @@ export const WalletManager: React.FC<Props> = ({ wallets, onAdd, onDelete, onUpd
   const [newName, setNewName] = useState('');
   const [newBalance, setNewBalance] = useState('');
   const [newIcon, setNewIcon] = useState('💵');
-  const [isDebt, setIsDebt] = useState(false);
-  const [isSavings, setIsSavings] = useState(false);
+  const [walletType, setWalletType] = useState<'payment' | 'debit' | 'savings' | 'debt'>('payment');
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
   const [interestRate, setInterestRate] = useState('');
   const [termMonths, setTermMonths] = useState('');
@@ -29,21 +28,27 @@ export const WalletManager: React.FC<Props> = ({ wallets, onAdd, onDelete, onUpd
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName) return;
+    
+    const isDebt = walletType === 'debt';
+    const isSavings = walletType === 'savings';
+
     onAdd({
       name: newName,
       balance: parseInputNumber(newBalance),
       icon: newIcon,
-      color: isDebt ? '#f43f5e' : isSavings ? '#10b981' : '#6366f1',
+      color: isDebt ? '#f43f5e' : isSavings ? '#10b981' : walletType === 'debit' ? '#0ea5e9' : '#6366f1',
       isSavings,
+      subType: walletType,
       startDate: isSavings ? startDate : undefined,
       interestRate: isSavings ? parseFloat(interestRate) : undefined,
       termMonths: isSavings ? parseInt(termMonths) : undefined
     }, isDebt);
+
     setNewName('');
     setNewBalance('');
     setInterestRate('');
     setTermMonths('');
-    setIsSavings(false);
+    setWalletType('payment');
     setIsAdding(false);
   };
 
@@ -88,6 +93,28 @@ export const WalletManager: React.FC<Props> = ({ wallets, onAdd, onDelete, onUpd
             </div>
           </div>
 
+          <div className="space-y-4">
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Loại ví</label>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              {[
+                { id: 'payment', label: 'Thanh toán', icon: '💰', color: 'bg-indigo-500' },
+                { id: 'debit', label: 'Ghi nợ (Debit)', icon: '💳', color: 'bg-sky-500' },
+                { id: 'savings', label: 'Tiết kiệm', icon: '🏦', color: 'bg-emerald-500' },
+                { id: 'debt', label: 'Khoản nợ', icon: '🚩', color: 'bg-rose-500' }
+              ].map(t => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setWalletType(t.id as any)}
+                  className={`flex flex-col items-center gap-2 p-3 rounded-2xl border-2 transition-all ${walletType === t.id ? `border-indigo-500 bg-white shadow-md` : 'border-transparent bg-white/50 hover:bg-white'}`}
+                >
+                  <span className={`w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm ${t.color}`}>{t.icon}</span>
+                  <span className={`text-[10px] font-black uppercase tracking-tighter ${walletType === t.id ? 'text-indigo-600' : 'text-slate-400'}`}>{t.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="flex flex-col md:flex-row gap-6">
             <div className="flex-1">
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">Biểu tượng</label>
@@ -104,30 +131,9 @@ export const WalletManager: React.FC<Props> = ({ wallets, onAdd, onDelete, onUpd
                 ))}
               </div>
             </div>
-            <div className="flex flex-col gap-3 p-4 bg-white rounded-2xl border border-slate-200">
-               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Loại ví</label>
-               <div className="flex gap-2">
-                 <button
-                  type="button"
-                  onClick={() => { setIsDebt(!isDebt); if (!isDebt) setIsSavings(false); }}
-                  className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${isDebt ? 'bg-rose-500 text-white' : 'bg-slate-100 text-slate-500'}`}
-                 >
-                   {isDebt ? '🚩 Ví Ghi Nợ' : '💰 Ví Tài Sản'}
-                 </button>
-                 {!isDebt && (
-                   <button
-                    type="button"
-                    onClick={() => setIsSavings(!isSavings)}
-                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${isSavings ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-500'}`}
-                   >
-                     {isSavings ? '🏦 Tiết kiệm' : '🏦 Thường'}
-                   </button>
-                 )}
-               </div>
-            </div>
           </div>
 
-          {isSavings && !isDebt && (
+          {walletType === 'savings' && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-6 bg-emerald-50/50 rounded-2xl border border-emerald-100 animate-in fade-in duration-300">
               <div>
                 <label className="block text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1.5 ml-1">Ngày mở sổ</label>
@@ -170,7 +176,10 @@ export const WalletManager: React.FC<Props> = ({ wallets, onAdd, onDelete, onUpd
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {wallets.map(wallet => {
-          const isDebtWallet = wallet.id.includes('debt') || wallet.name.toLowerCase().includes('nợ');
+          const isDebtWallet = wallet.id.includes('debt') || (typeof wallet.name === 'string' && wallet.name.toLowerCase().includes('nợ')) || wallet.subType === 'debt';
+          const typeLabel = wallet.subType === 'payment' ? 'Thanh toán' : wallet.subType === 'debit' ? 'Ghi nợ' : wallet.subType === 'savings' ? 'Tiết kiệm' : 'Khoản nợ';
+          const typeColor = wallet.subType === 'payment' ? 'text-indigo-500' : wallet.subType === 'debit' ? 'text-sky-500' : wallet.subType === 'savings' ? 'text-emerald-500' : 'text-rose-500';
+          
           return (
             <div key={wallet.id} className={`p-5 rounded-3xl border flex items-center gap-4 group transition-all ${isDebtWallet ? 'bg-rose-50/30 border-rose-100 hover:border-rose-300' : wallet.isSavings ? 'bg-emerald-50/30 border-emerald-100 hover:border-emerald-300' : 'bg-slate-50 border-slate-100 hover:border-indigo-200 hover:bg-white'}`}>
               {deletingId === wallet.id ? (
@@ -194,8 +203,8 @@ export const WalletManager: React.FC<Props> = ({ wallets, onAdd, onDelete, onUpd
                       className="w-full bg-transparent border-none focus:outline-none font-black text-slate-800 text-sm truncate"
                     />
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                      <p className={`text-[9px] font-black uppercase tracking-tighter ${isDebtWallet ? 'text-rose-500' : wallet.isSavings ? 'text-emerald-500' : 'text-indigo-500'}`}>
-                        {isDebtWallet ? 'Khoản nợ' : wallet.isSavings ? 'Tiết kiệm' : 'Tài sản'}: {wallet.balance.toLocaleString('vi-VN')}₫
+                      <p className={`text-[9px] font-black uppercase tracking-tighter ${typeColor}`}>
+                        {typeLabel}: {wallet.balance.toLocaleString('vi-VN')}₫
                       </p>
                       {wallet.isSavings && (
                         <div className="flex items-center gap-2">
