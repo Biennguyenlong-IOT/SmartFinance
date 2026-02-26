@@ -57,6 +57,9 @@ const App: React.FC = () => {
   const [isFetching, setIsFetching] = useState(false);
   const [lastSynced, setLastSynced] = useState<string | null>(null);
   
+  // Debounce timer for syncing
+  const syncTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+  
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [passwordInput, setPasswordInput] = useState('');
   const [passwordError, setPasswordError] = useState(false);
@@ -104,19 +107,34 @@ const App: React.FC = () => {
 
   useEffect(() => { pullDataFromSheet(true); }, [pullDataFromSheet]);
 
-  const syncConfigToSheet = async (updatedState: AppState) => {
-    setIsSyncing(true);
-    const success = await syncToSheet(SHEET_URL, {
-      action: 'sync_all',
-      wallets: updatedState.wallets,
-      categories: updatedState.categories,
-      favorites: updatedState.favorites,
-      settingsPassword: updatedState.settingsPassword,
-      transactions: updatedState.transactions
-    });
-    setIsSyncing(false);
-    return success;
-  };
+  const syncConfigToSheet = useCallback((updatedState: AppState, immediate = false) => {
+    if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+
+    const performSync = async () => {
+      setIsSyncing(true);
+      try {
+        await syncToSheet(SHEET_URL, {
+          action: 'sync_all',
+          wallets: updatedState.wallets,
+          categories: updatedState.categories,
+          favorites: updatedState.favorites,
+          settingsPassword: updatedState.settingsPassword,
+          transactions: updatedState.transactions
+        });
+        setLastSynced(new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }));
+      } catch (err) {
+        console.error("Sync error:", err);
+      } finally {
+        setIsSyncing(false);
+      }
+    };
+
+    if (immediate) {
+      performSync();
+    } else {
+      syncTimeoutRef.current = setTimeout(performSync, 2000); // Wait 2 seconds of inactivity
+    }
+  }, []);
 
   const addTransaction = async (newT: Omit<Transaction, 'id'> & { toWalletId?: string }) => {
     const paymentDate = newT.date || new Date().toISOString();
@@ -136,8 +154,8 @@ const App: React.FC = () => {
         if (w.id === newT.toWalletId) return { ...w, balance: w.balance + newT.amount };
         return w;
       });
-      syncToSheet(SHEET_URL, { action: 'add_transaction', transaction: outTx, newBalance: updatedWallets.find(w => w.id === newT.walletId)?.balance });
-      syncToSheet(SHEET_URL, { action: 'add_transaction', transaction: inTx, newBalance: updatedWallets.find(w => w.id === newT.toWalletId)?.balance });
+      await syncToSheet(SHEET_URL, { action: 'add_transaction', transaction: outTx, newBalance: updatedWallets.find(w => w.id === newT.walletId)?.balance });
+      await syncToSheet(SHEET_URL, { action: 'add_transaction', transaction: inTx, newBalance: updatedWallets.find(w => w.id === newT.toWalletId)?.balance });
     } 
     else if (newT.categoryId === '10' && newT.toWalletId) {
       const category = state.categories.find(c => c.id === newT.categoryId);
@@ -150,10 +168,10 @@ const App: React.FC = () => {
         return w;
       });
 
-      syncToSheet(SHEET_URL, { action: 'add_transaction', transaction, newBalance: updatedWallets.find(w => w.id === transaction.walletId)?.balance });
+      await syncToSheet(SHEET_URL, { action: 'add_transaction', transaction, newBalance: updatedWallets.find(w => w.id === transaction.walletId)?.balance });
       const debtW = updatedWallets.find(w => w.id === newT.toWalletId);
       if (debtW) {
-        syncToSheet(SHEET_URL, { action: 'update_wallet_balance', walletId: debtW.id, balance: debtW.balance });
+        await syncToSheet(SHEET_URL, { action: 'update_wallet_balance', walletId: debtW.id, balance: debtW.balance });
       }
     } 
     else {
@@ -173,7 +191,7 @@ const App: React.FC = () => {
         return { ...w, balance: newBalance };
       });
 
-      syncToSheet(SHEET_URL, { action: 'add_transaction', transaction, newBalance: updatedWallets.find(w => w.id === transaction.walletId)?.balance });
+      await syncToSheet(SHEET_URL, { action: 'add_transaction', transaction, newBalance: updatedWallets.find(w => w.id === transaction.walletId)?.balance });
     }
 
     setState(prev => ({ ...prev, transactions: newTransactions, wallets: updatedWallets }));
@@ -234,8 +252,8 @@ const App: React.FC = () => {
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Tài sản</span>
               <span className="text-lg font-black text-indigo-600 leading-none">{totalAssets.toLocaleString('vi-VN')}₫</span>
             </div>
-            <button onClick={() => pullDataFromSheet(false)} className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-black uppercase transition-all ${isFetching ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'}`}>
-              <span className={`w-2 h-2 bg-current rounded-full ${isFetching ? 'animate-ping' : ''}`}></span>{isFetching ? 'Nạp...' : lastSynced || 'Cloud'}
+            <button onClick={() => pullDataFromSheet(false)} className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-black uppercase transition-all ${isFetching || isSyncing ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'}`}>
+              <span className={`w-2 h-2 bg-current rounded-full ${isFetching || isSyncing ? 'animate-ping' : ''}`}></span>{isFetching ? 'Nạp...' : isSyncing ? 'Đẩy...' : lastSynced || 'Cloud'}
             </button>
           </div>
         </div>
