@@ -1,0 +1,5 @@
+{
+  "name": "Quản Lý Chi Tiêu Thông Minh",
+  "description": "Một ứng dụng quản lý chi tiêu cá nhân hiện đại giúp bạn theo dõi ví, thống kê chi tiêu và nhận lời khuyên từ AI Gemini.",
+  "requestFramePermissions": []
+}
