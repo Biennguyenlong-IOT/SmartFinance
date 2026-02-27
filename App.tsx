@@ -11,6 +11,7 @@ import { FavoriteManager } from './components/FavoriteManager';
 import { PaymentModal } from './components/PaymentModal';
 import { DebtLedgerModal } from './components/DebtLedgerModal';
 import { SavingsDetailModal } from './components/SavingsDetailModal';
+import { BorrowModal } from './components/BorrowModal';
 import { CategoryManager } from './components/CategoryManager';
 import { WalletManager } from './components/WalletManager';
 import { syncToSheet, fetchFromSheet } from './services/sheetService';
@@ -55,6 +56,7 @@ const App: React.FC = () => {
   const [selectedDebtWallet, setSelectedDebtWallet] = useState<Wallet | null>(null);
   const [viewingLedgerWallet, setViewingLedgerWallet] = useState<Wallet | null>(null);
   const [viewingSavingsWallet, setViewingSavingsWallet] = useState<Wallet | null>(null);
+  const [borrowingFromDebtWallet, setBorrowingFromDebtWallet] = useState<Wallet | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
   const [lastSynced, setLastSynced] = useState<string | null>(null);
@@ -83,6 +85,12 @@ const App: React.FC = () => {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [state]);
+
+  useEffect(() => {
+    const handleOpenBorrow = (e: any) => setBorrowingFromDebtWallet(e.detail);
+    window.addEventListener('openBorrowModal', handleOpenBorrow);
+    return () => window.removeEventListener('openBorrowModal', handleOpenBorrow);
+  }, []);
 
   const pullDataFromSheet = useCallback(async (silent = false) => {
     if (!SHEET_URL) return;
@@ -200,6 +208,45 @@ const App: React.FC = () => {
     setActiveTab('dashboard');
   };
 
+  const handleBorrow = async (amount: number, targetWalletId: string, note: string) => {
+    if (!borrowingFromDebtWallet) return;
+
+    const borrowTx: Omit<Transaction, 'id'> = {
+      amount,
+      date: new Date().toISOString(),
+      note,
+      type: CategoryType.INCOME, // Vay thêm là tiền đổ vào ví tài sản
+      categoryId: 'borrowing', // ID đặc biệt cho vay mượn
+      categoryName: 'Vay thêm',
+      walletId: targetWalletId, // Ví nhận tiền
+      walletName: state.wallets.find(w => w.id === targetWalletId)?.name || '',
+      icon: '💸'
+    };
+
+    // 1. Cập nhật ví nhận tiền (Tăng tài sản)
+    await addTransaction(borrowTx);
+
+    // 2. Cập nhật ví nợ (Tăng nợ)
+    const updatedWallets = state.wallets.map(w => {
+      if (w.id === borrowingFromDebtWallet.id) {
+        return { ...w, balance: w.balance + amount };
+      }
+      return w;
+    });
+
+    setState(prev => ({ ...prev, wallets: updatedWallets }));
+    setBorrowingFromDebtWallet(null);
+    
+    // Đồng bộ ví nợ lên sheet
+    if (state.googleSheetUrl) {
+      await syncToSheet(state.googleSheetUrl, {
+        action: 'update_wallet_balance',
+        walletId: borrowingFromDebtWallet.id,
+        balance: borrowingFromDebtWallet.balance + amount
+      });
+    }
+  };
+
   const totalAssets = state.wallets.filter(w => !isDebtWallet(w)).reduce((sum, w) => sum + w.balance, 0);
 
   return (
@@ -237,6 +284,15 @@ const App: React.FC = () => {
         <SavingsDetailModal 
           wallet={viewingSavingsWallet} 
           onClose={() => setViewingSavingsWallet(null)} 
+        />
+      )}
+
+      {borrowingFromDebtWallet && (
+        <BorrowModal 
+          debtWallet={borrowingFromDebtWallet}
+          wallets={state.wallets}
+          onClose={() => setBorrowingFromDebtWallet(null)}
+          onBorrow={handleBorrow}
         />
       )}
 
