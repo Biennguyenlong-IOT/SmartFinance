@@ -17,7 +17,6 @@ export const getFinancialAdvice = async (
   }).join('\n');
 
   const totalBalance = wallets.reduce((sum, w) => sum + w.balance, 0);
-<<<<<<< HEAD
   const budgetInfo = categories
     .filter(c => c.budget && c.budget > 0)
     .map(c => {
@@ -26,17 +25,15 @@ export const getFinancialAdvice = async (
         .reduce((sum, t) => sum + t.amount, 0);
       return `- ${c.name}: Đã tiêu ${spent.toLocaleString('vi-VN')}đ / Ngân sách ${c.budget?.toLocaleString('vi-VN')}đ`;
     }).join('\n');
-=======
->>>>>>> 85e4e8052c808e91e17653b9e12bb8c1a48d9261
+
 
   const prompt = `
     Dưới đây là danh sách chi tiêu gần đây và tình hình tài chính của tôi:
     - Tổng số dư: ${totalBalance.toLocaleString('vi-VN')}đ
-<<<<<<< HEAD
+
     - Tình hình ngân sách:
     ${budgetInfo || 'Chưa thiết lập ngân sách cụ thể.'}
-=======
->>>>>>> 85e4e8052c808e91e17653b9e12bb8c1a48d9261
+
     - Các giao dịch gần nhất:
     ${summary}
 

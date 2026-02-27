@@ -1,16 +1,6 @@
-<<<<<<< HEAD
 {
   "name": "Quản Lý Chi Tiêu Thông Minh",
   "description": "Một ứng dụng quản lý chi tiêu cá nhân hiện đại giúp bạn theo dõi ví, thống kê chi tiêu và nhận lời khuyên từ AI Gemini.",
   "requestFramePermissions": []
 }
-=======
 
-{
-  "name": "Quản Lý Chi Tiêu Thông Minh",
-  "description": "Một ứng dụng quản lý chi tiêu cá nhân hiện đại giúp bạn theo dõi ví, thống kê chi tiêu và nhận lời khuyên từ AI Gemini.",
-  "requestFramePermissions": [
-    "geolocation"
-  ]
-}
->>>>>>> 85e4e8052c808e91e17653b9e12bb8c1a48d9261
