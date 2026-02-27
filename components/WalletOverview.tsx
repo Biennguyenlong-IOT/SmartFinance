@@ -11,14 +11,17 @@ interface Props {
   onSavingsClick: (wallet: Wallet) => void;
 }
 
-const isDebtWallet = (w: Wallet) => w.id.includes('debt') || (typeof w.name === 'string' && w.name.toLowerCase().includes('nợ'));
+const isDebtWallet = (w: Wallet) => w.subType === 'debt' || w.id.includes('debt') || (typeof w.name === 'string' && w.name.toLowerCase().includes('nợ'));
+const isLendingWallet = (w: Wallet) => w.subType === 'lending' || (typeof w.name === 'string' && w.name.toLowerCase().includes('cho vay'));
 
 export const WalletOverview: React.FC<Props> = ({ wallets, transactions, onDebtClick, onViewLedger, onSavingsClick }) => {
-  const assets = wallets.filter(w => !isDebtWallet(w));
+  const assets = wallets.filter(w => !isDebtWallet(w) && !isLendingWallet(w));
   const debts = wallets.filter(w => isDebtWallet(w));
+  const lendings = wallets.filter(w => isLendingWallet(w));
   
   const totalAssets = assets.reduce((sum, w) => sum + w.balance, 0);
   const totalDebts = debts.reduce((sum, w) => sum + Math.abs(w.balance), 0);
+  const totalLendings = lendings.reduce((sum, w) => sum + w.balance, 0);
   
   const debtRatio = totalAssets > 0 ? (totalDebts / totalAssets) * 100 : (totalDebts > 0 ? 100 : 0);
 
@@ -71,6 +74,12 @@ export const WalletOverview: React.FC<Props> = ({ wallets, transactions, onDebtC
                   <p className="text-lg font-black text-rose-600">-{formatCurrency(totalDebts)}₫</p>
                 </div>
               </>
+            )}
+            {totalLendings > 0 && (
+              <div className="bg-emerald-50 px-5 py-3 rounded-2xl border border-emerald-100 text-right">
+                <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-0.5">Đang cho vay</p>
+                <p className="text-lg font-black text-emerald-700">+{formatCurrency(totalLendings)}₫</p>
+              </div>
             )}
           </div>
         </div>
@@ -170,6 +179,67 @@ export const WalletOverview: React.FC<Props> = ({ wallets, transactions, onDebtC
                   <button 
                     onClick={(e) => { e.stopPropagation(); onViewLedger(wallet); }}
                     className="absolute top-6 right-32 w-10 h-10 bg-white border border-slate-100 rounded-xl flex items-center justify-center text-slate-400 hover:text-rose-500 hover:shadow-md transition-all opacity-0 group-hover:opacity-100"
+                    title="Xem sổ nợ"
+                  >
+                    📄
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {lendings.length > 0 && (
+        <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100">
+          <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
+            <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse"></span> Quản lý khoản cho vay
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {lendings.map(wallet => {
+              const currentLending = wallet.balance;
+              
+              return (
+                <div key={wallet.id} className="relative group bg-slate-50/50 border border-slate-100 rounded-[2rem] p-6 hover:bg-white hover:shadow-xl hover:border-emerald-100 transition-all">
+                  <div className="flex justify-between items-start mb-6">
+                    <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-3xl shadow-sm border border-emerald-100">
+                      {wallet.icon}
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <button 
+                        onClick={() => {
+                          const event = new CustomEvent('openCollectModal', { detail: wallet });
+                          window.dispatchEvent(event);
+                        }}
+                        className="px-4 py-2 text-[10px] font-black text-emerald-600 bg-white rounded-xl border border-emerald-100 hover:bg-emerald-50 shadow-sm transition-all active:scale-95"
+                      >
+                        Thu hồi
+                      </button>
+                      <button 
+                        onClick={() => {
+                          const event = new CustomEvent('openLendMoreModal', { detail: wallet });
+                          window.dispatchEvent(event);
+                        }}
+                        className="px-4 py-2 text-[10px] font-black text-amber-600 bg-white rounded-xl border border-amber-100 hover:bg-amber-50 shadow-sm transition-all active:scale-95"
+                      >
+                        Cho vay thêm
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1">{wallet.name}</p>
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-2xl font-black text-emerald-600">{formatCurrency(currentLending)}</span>
+                        <span className="text-xs font-bold text-emerald-300">₫</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); onViewLedger(wallet); }}
+                    className="absolute top-6 right-32 w-10 h-10 bg-white border border-slate-100 rounded-xl flex items-center justify-center text-slate-400 hover:text-emerald-500 hover:shadow-md transition-all opacity-0 group-hover:opacity-100"
                     title="Xem sổ nợ"
                   >
                     📄

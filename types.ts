@@ -21,6 +21,7 @@ export interface Wallet {
   icon: string;
   color: string;
   isSavings?: boolean;
+  subType?: 'payment' | 'debit' | 'savings' | 'debt' | 'lending';
   startDate?: string;
   interestRate?: number;
   termMonths?: number;

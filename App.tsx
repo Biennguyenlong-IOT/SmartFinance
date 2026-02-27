@@ -12,6 +12,7 @@ import { PaymentModal } from './components/PaymentModal';
 import { DebtLedgerModal } from './components/DebtLedgerModal';
 import { SavingsDetailModal } from './components/SavingsDetailModal';
 import { BorrowModal } from './components/BorrowModal';
+import { LendingActionModal } from './components/LendingActionModal';
 import { CategoryManager } from './components/CategoryManager';
 import { WalletManager } from './components/WalletManager';
 import { syncToSheet, fetchFromSheet } from './services/sheetService';
@@ -57,6 +58,7 @@ const App: React.FC = () => {
   const [viewingLedgerWallet, setViewingLedgerWallet] = useState<Wallet | null>(null);
   const [viewingSavingsWallet, setViewingSavingsWallet] = useState<Wallet | null>(null);
   const [borrowingFromDebtWallet, setBorrowingFromDebtWallet] = useState<Wallet | null>(null);
+  const [lendingActionWallet, setLendingActionWallet] = useState<{ wallet: Wallet, mode: 'collect' | 'lend_more' } | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
   const [lastSynced, setLastSynced] = useState<string | null>(null);
@@ -88,8 +90,18 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const handleOpenBorrow = (e: any) => setBorrowingFromDebtWallet(e.detail);
+    const handleOpenCollect = (e: any) => setLendingActionWallet({ wallet: e.detail, mode: 'collect' });
+    const handleOpenLendMore = (e: any) => setLendingActionWallet({ wallet: e.detail, mode: 'lend_more' });
+    
     window.addEventListener('openBorrowModal', handleOpenBorrow);
-    return () => window.removeEventListener('openBorrowModal', handleOpenBorrow);
+    window.addEventListener('openCollectModal', handleOpenCollect);
+    window.addEventListener('openLendMoreModal', handleOpenLendMore);
+    
+    return () => {
+      window.removeEventListener('openBorrowModal', handleOpenBorrow);
+      window.removeEventListener('openCollectModal', handleOpenCollect);
+      window.removeEventListener('openLendMoreModal', handleOpenLendMore);
+    };
   }, []);
 
   const pullDataFromSheet = useCallback(async (silent = false) => {
@@ -247,6 +259,49 @@ const App: React.FC = () => {
     }
   };
 
+  const handleLendingAction = async (amount: number, otherWalletId: string, note: string) => {
+    if (!lendingActionWallet) return;
+    const { wallet: lendingWallet, mode } = lendingActionWallet;
+
+    const tx: Omit<Transaction, 'id'> = {
+      amount,
+      date: new Date().toISOString(),
+      note,
+      type: mode === 'collect' ? CategoryType.INCOME : CategoryType.EXPENSE,
+      categoryId: mode === 'collect' ? 'collect_debt' : 'lending_out',
+      categoryName: mode === 'collect' ? 'Thu hồi nợ' : 'Cho vay',
+      walletId: otherWalletId, // Ví thực hiện giao dịch (nhận tiền hoặc bỏ tiền ra)
+      walletName: state.wallets.find(w => w.id === otherWalletId)?.name || '',
+      icon: mode === 'collect' ? '💰' : '🤝'
+    };
+
+    // 1. Cập nhật ví thực hiện giao dịch (Tài sản thực tế)
+    await addTransaction(tx);
+
+    // 2. Cập nhật ví cho vay (Tài sản ghi nhận)
+    const updatedWallets = state.wallets.map(w => {
+      if (w.id === lendingWallet.id) {
+        // Nếu thu hồi thì giảm số dư ví cho vay, nếu cho vay thêm thì tăng
+        const newBalance = mode === 'collect' ? w.balance - amount : w.balance + amount;
+        return { ...w, balance: newBalance };
+      }
+      return w;
+    });
+
+    setState(prev => ({ ...prev, wallets: updatedWallets }));
+    setLendingActionWallet(null);
+    
+    // Đồng bộ ví cho vay lên sheet
+    if (state.googleSheetUrl) {
+      const finalBalance = updatedWallets.find(w => w.id === lendingWallet.id)?.balance || 0;
+      await syncToSheet(state.googleSheetUrl, {
+        action: 'update_wallet_balance',
+        walletId: lendingWallet.id,
+        balance: finalBalance
+      });
+    }
+  };
+
   const totalAssets = state.wallets.filter(w => !isDebtWallet(w)).reduce((sum, w) => sum + w.balance, 0);
 
   return (
@@ -293,6 +348,16 @@ const App: React.FC = () => {
           wallets={state.wallets}
           onClose={() => setBorrowingFromDebtWallet(null)}
           onBorrow={handleBorrow}
+        />
+      )}
+
+      {lendingActionWallet && (
+        <LendingActionModal
+          lendingWallet={lendingActionWallet.wallet}
+          wallets={state.wallets}
+          mode={lendingActionWallet.mode}
+          onClose={() => setLendingActionWallet(null)}
+          onAction={handleLendingAction}
         />
       )}
 

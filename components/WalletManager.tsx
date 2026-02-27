@@ -100,7 +100,8 @@ export const WalletManager: React.FC<Props> = ({ wallets, onAdd, onDelete, onUpd
                 { id: 'payment', label: 'Thanh toán', icon: '💰', color: 'bg-indigo-500' },
                 { id: 'debit', label: 'Ghi nợ (Debit)', icon: '💳', color: 'bg-sky-500' },
                 { id: 'savings', label: 'Tiết kiệm', icon: '🏦', color: 'bg-emerald-500' },
-                { id: 'debt', label: 'Khoản nợ', icon: '🚩', color: 'bg-rose-500' }
+                { id: 'debt', label: 'Khoản nợ', icon: '🚩', color: 'bg-rose-500' },
+                { id: 'lending', label: 'Cho vay', icon: '🤝', color: 'bg-amber-500' }
               ].map(t => (
                 <button
                   key={t.id}
