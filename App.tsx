@@ -330,6 +330,7 @@ const App: React.FC = () => {
             <GreetingHeader />
             <WalletOverview 
               wallets={state.wallets} 
+              transactions={state.transactions}
               onDebtClick={setSelectedDebtWallet} 
               onViewLedger={setViewingLedgerWallet}
               onSavingsClick={setViewingSavingsWallet}
