@@ -21,7 +21,9 @@ const DEFAULT_PASSWORD = '123456';
 const STORAGE_KEY = 'spendwise_data_v12';
 const SHEET_URL = 'https://script.google.com/macros/s/AKfycby16fHNP_5odsuRdW6L1j4Lyc-FYNR05bPlnqU1yUbzCOqSC6HqmlAJJ87eLUHBolGyRw/exec';
 
-const isDebtWallet = (w: Wallet) => w.id.includes('debt') || (typeof w.name === 'string' && w.name.toLowerCase().includes('nợ'));
+const isDebtWallet = (w: Wallet) => w.subType === 'debt' || w.id.includes('debt') || (typeof w.name === 'string' && w.name.toLowerCase().includes('nợ'));
+const isSavingsWallet = (w: Wallet) => w.isSavings === true || w.subType === 'savings';
+const isLendingWallet = (w: Wallet) => w.subType === 'lending' || (typeof w.name === 'string' && w.name.toLowerCase().includes('cho vay'));
 
 // Hàm lọc trùng lặp theo ID
 function deduplicate<T extends { id: string }>(arr: T[]): T[] {
@@ -302,7 +304,77 @@ const App: React.FC = () => {
     }
   };
 
-  const totalAssets = state.wallets.filter(w => !isDebtWallet(w)).reduce((sum, w) => sum + w.balance, 0);
+  const handleSettleSavings = async (savingsWalletId: string, destinationWalletId: string, amount: number, isEarly: boolean) => {
+    const savingsWallet = state.wallets.find(w => w.id === savingsWalletId);
+    const destinationWallet = state.wallets.find(w => w.id === destinationWalletId);
+    if (!savingsWallet || !destinationWallet) return;
+
+    const paymentDate = new Date().toISOString();
+    const id = 'settle-' + Math.random().toString(36).substr(2, 9);
+    
+    const note = isEarly 
+      ? `Tất toán trước hạn sổ: ${savingsWallet.name}` 
+      : `Tất toán đúng hạn sổ: ${savingsWallet.name} (Nhận gốc & Lãi)`;
+
+    const settleTx: Transaction = {
+      id,
+      amount,
+      date: paymentDate,
+      note,
+      type: CategoryType.INCOME,
+      categoryId: 'savings_settlement',
+      categoryName: 'Tất toán tiết kiệm',
+      walletId: destinationWalletId,
+      walletName: destinationWallet.name,
+      icon: '🏦'
+    };
+
+    // Tính toán lại danh sách ví: Xóa ví tiết kiệm, Tăng tiền ví nhận
+    const updatedWallets = state.wallets
+      .filter(w => w.id !== savingsWalletId)
+      .map(w => {
+        if (w.id === destinationWalletId) {
+          return { ...w, balance: w.balance + amount };
+        }
+        return w;
+      });
+
+    const newTransactions = [...state.transactions, settleTx];
+
+    const updatedState = {
+      ...state,
+      wallets: updatedWallets,
+      transactions: newTransactions
+    };
+
+    setState(updatedState);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedState));
+    setViewingSavingsWallet(null);
+
+    // Đồng bộ toàn bộ lên Google Sheet để cập nhật ví và lịch sử giao dịch mới nhất
+    if (state.googleSheetUrl) {
+      setIsSyncing(true);
+      try {
+        await syncToSheet(state.googleSheetUrl, {
+          action: 'sync_all',
+          wallets: updatedWallets,
+          categories: state.categories,
+          favorites: state.favorites,
+          settingsPassword: state.settingsPassword,
+          transactions: newTransactions
+        });
+        setLastSynced(new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }));
+      } catch (err) {
+        console.error("Lỗi đồng bộ tất toán sổ tiết kiệm:", err);
+      } finally {
+        setIsSyncing(false);
+      }
+    }
+  };
+
+  const totalAvailableAssets = state.wallets
+    .filter(w => !isSavingsWallet(w) && !isDebtWallet(w) && !isLendingWallet(w))
+    .reduce((sum, w) => sum + w.balance, 0);
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 selection:bg-indigo-100 pb-32 md:pb-8">
@@ -338,7 +410,9 @@ const App: React.FC = () => {
       {viewingSavingsWallet && (
         <SavingsDetailModal 
           wallet={viewingSavingsWallet} 
+          wallets={state.wallets}
           onClose={() => setViewingSavingsWallet(null)} 
+          onSettle={handleSettleSavings}
         />
       )}
 
@@ -379,8 +453,8 @@ const App: React.FC = () => {
           </nav>
           <div className="flex items-center gap-4">
             <div className="hidden lg:flex flex-col items-end">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Tài sản</span>
-              <span className="text-lg font-black text-indigo-600 leading-none">{totalAssets.toLocaleString('vi-VN')}₫</span>
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Khả dụng</span>
+              <span className="text-lg font-black text-indigo-600 leading-none">{totalAvailableAssets.toLocaleString('vi-VN')}₫</span>
             </div>
             <button onClick={() => pullDataFromSheet(false)} className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-black uppercase transition-all ${isFetching || isSyncing ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'}`}>
               <span className={`w-2 h-2 bg-current rounded-full ${isFetching || isSyncing ? 'animate-ping' : ''}`}></span>{isFetching ? 'Nạp...' : isSyncing ? 'Đẩy...' : lastSynced || 'Cloud'}
