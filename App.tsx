@@ -116,14 +116,49 @@ const App: React.FC = () => {
     try {
       const data = await fetchFromSheet(SHEET_URL);
       if (data && !data.error) {
-        setState(prev => ({
-          ...prev,
-          wallets: (Array.isArray(data.wallets) && data.wallets.length > 0) ? deduplicate(data.wallets) : prev.wallets,
-          categories: (Array.isArray(data.categories) && data.categories.length > 0) ? deduplicate(data.categories) : prev.categories,
-          favorites: Array.isArray(data.favorites) ? deduplicate(data.favorites) : prev.favorites,
-          transactions: Array.isArray(data.transactions) ? deduplicate(data.transactions) : prev.transactions,
-          settingsPassword: data.settingsPassword || prev.settingsPassword || DEFAULT_PASSWORD
-        }));
+        setState(prev => {
+          let mergedWallets = prev.wallets;
+          if (Array.isArray(data.wallets) && data.wallets.length > 0) {
+            const incoming = deduplicate(data.wallets);
+            mergedWallets = incoming.map((inc: Wallet) => {
+              const local = prev.wallets.find(l => l.id === inc.id);
+              if (!local) return inc;
+
+              const getNum = (v: any, fallback: number) => {
+                if (v !== undefined && v !== null && v !== '') {
+                  const n = Number(v);
+                  if (!isNaN(n)) return n;
+                }
+                return fallback;
+              };
+
+              return {
+                ...local,
+                ...inc,
+                // Giữ lại và khôi phục thông số hụi nếu Google Sheet chưa/chưa kịp lưu các trường tùy chỉnh
+                huiShareAmount: getNum(inc.huiShareAmount, local.huiShareAmount || 0),
+                huiTotalPeriods: getNum(inc.huiTotalPeriods, local.huiTotalPeriods || 12),
+                huiCompletedPeriods: getNum(inc.huiCompletedPeriods, local.huiCompletedPeriods || 0),
+                huiDailyQuota: getNum(inc.huiDailyQuota, local.huiDailyQuota || 0),
+                huiTotalActualPaid: getNum(inc.huiTotalActualPaid, local.huiTotalActualPaid || 0),
+                huiIsEnded: inc.huiIsEnded !== undefined ? inc.huiIsEnded : local.huiIsEnded,
+                // Giữ lại thông số tiết kiệm
+                startDate: inc.startDate || local.startDate,
+                interestRate: getNum(inc.interestRate, local.interestRate || 0),
+                termMonths: getNum(inc.termMonths, local.termMonths || 0),
+              };
+            });
+          }
+
+          return {
+            ...prev,
+            wallets: mergedWallets,
+            categories: (Array.isArray(data.categories) && data.categories.length > 0) ? deduplicate(data.categories) : prev.categories,
+            favorites: Array.isArray(data.favorites) ? deduplicate(data.favorites) : prev.favorites,
+            transactions: Array.isArray(data.transactions) ? deduplicate(data.transactions) : prev.transactions,
+            settingsPassword: data.settingsPassword || prev.settingsPassword || DEFAULT_PASSWORD
+          };
+        });
         setLastSynced(new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }));
       }
     } catch (err) {
@@ -526,6 +561,10 @@ const App: React.FC = () => {
     setState(updatedState);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedState));
 
+    if (viewingHuiWallet && viewingHuiWallet.wallet.id === updatedWallet.id) {
+      setViewingHuiWallet({ ...viewingHuiWallet, wallet: updatedWallet });
+    }
+
     if (state.googleSheetUrl) {
       setIsSyncing(true);
       try {
@@ -592,7 +631,7 @@ const App: React.FC = () => {
 
       {viewingHuiWallet && (
         <HuiDetailModal 
-          wallet={viewingHuiWallet.wallet} 
+          wallet={state.wallets.find(w => w.id === viewingHuiWallet.wallet.id) || viewingHuiWallet.wallet} 
           wallets={state.wallets}
           transactions={state.transactions}
           initialMode={viewingHuiWallet.mode}
