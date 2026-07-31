@@ -366,7 +366,7 @@ export const WalletOverview: React.FC<Props> = ({ wallets, transactions, onDebtC
               const dailyQuota = wallet.huiDailyQuota || 0;
               const totalActualPaid = wallet.huiTotalActualPaid ?? wallet.balance ?? 0;
               const expectedQuotaSoFar = dailyQuota * completedPeriods;
-              const diff = totalActualPaid - expectedQuotaSoFar;
+              const diff = expectedQuotaSoFar - totalActualPaid;
               const progress = totalPeriods > 0 ? (completedPeriods / totalPeriods) * 100 : 0;
 
               return (
