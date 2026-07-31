@@ -20,10 +20,17 @@ export const WalletManager: React.FC<Props> = ({ wallets, onAdd, onDelete, onUpd
   const [newName, setNewName] = useState('');
   const [newBalance, setNewBalance] = useState('');
   const [newIcon, setNewIcon] = useState('💵');
-  const [walletType, setWalletType] = useState<'payment' | 'debit' | 'savings' | 'debt'>('payment');
+  const [walletType, setWalletType] = useState<'payment' | 'debit' | 'savings' | 'debt' | 'lending' | 'hui'>('payment');
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
   const [interestRate, setInterestRate] = useState('');
   const [termMonths, setTermMonths] = useState('');
+
+  // State riêng cho Hụi
+  const [huiShareAmount, setHuiShareAmount] = useState('');
+  const [huiTotalPeriods, setHuiTotalPeriods] = useState('');
+  const [huiDailyQuota, setHuiDailyQuota] = useState('');
+  const [huiCompletedPeriods, setHuiCompletedPeriods] = useState('0');
+  const [huiTotalActualPaid, setHuiTotalActualPaid] = useState('0');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,23 +38,42 @@ export const WalletManager: React.FC<Props> = ({ wallets, onAdd, onDelete, onUpd
     
     const isDebt = walletType === 'debt';
     const isSavings = walletType === 'savings';
+    const isHui = walletType === 'hui';
+
+    const shareAmount = parseInputNumber(huiShareAmount);
+    const totalPeriods = parseInt(huiTotalPeriods) || 12;
+    const dailyQuota = parseInputNumber(huiDailyQuota);
+    const completedPeriods = parseInt(huiCompletedPeriods) || 0;
+    const totalActualPaid = parseInputNumber(huiTotalActualPaid);
 
     onAdd({
       name: newName,
-      balance: parseInputNumber(newBalance),
-      icon: newIcon,
-      color: isDebt ? '#f43f5e' : isSavings ? '#10b981' : walletType === 'debit' ? '#0ea5e9' : '#6366f1',
+      balance: isHui ? totalActualPaid : parseInputNumber(newBalance),
+      icon: isHui ? '🎋' : newIcon,
+      color: isDebt ? '#f43f5e' : isSavings ? '#10b981' : isHui ? '#a855f7' : walletType === 'debit' ? '#0ea5e9' : '#6366f1',
       isSavings,
       subType: walletType,
       startDate: isSavings ? startDate : undefined,
       interestRate: isSavings ? parseFloat(interestRate) : undefined,
-      termMonths: isSavings ? parseInt(termMonths) : undefined
+      termMonths: isSavings ? parseInt(termMonths) : undefined,
+      // Thuộc tính Hụi
+      huiShareAmount: isHui ? shareAmount : undefined,
+      huiTotalPeriods: isHui ? totalPeriods : undefined,
+      huiCompletedPeriods: isHui ? completedPeriods : undefined,
+      huiDailyQuota: isHui ? dailyQuota : undefined,
+      huiTotalActualPaid: isHui ? totalActualPaid : undefined,
+      huiIsEnded: false
     }, isDebt);
 
     setNewName('');
     setNewBalance('');
     setInterestRate('');
     setTermMonths('');
+    setHuiShareAmount('');
+    setHuiTotalPeriods('');
+    setHuiDailyQuota('');
+    setHuiCompletedPeriods('0');
+    setHuiTotalActualPaid('0');
     setWalletType('payment');
     setIsAdding(false);
   };
@@ -95,13 +121,14 @@ export const WalletManager: React.FC<Props> = ({ wallets, onAdd, onDelete, onUpd
 
           <div className="space-y-4">
             <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Loại ví</label>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
               {[
                 { id: 'payment', label: 'Thanh toán', icon: '💰', color: 'bg-indigo-500' },
                 { id: 'debit', label: 'Ghi nợ (Debit)', icon: '💳', color: 'bg-sky-500' },
                 { id: 'savings', label: 'Tiết kiệm', icon: '🏦', color: 'bg-emerald-500' },
                 { id: 'debt', label: 'Khoản nợ', icon: '🚩', color: 'bg-rose-500' },
-                { id: 'lending', label: 'Cho vay', icon: '🤝', color: 'bg-amber-500' }
+                { id: 'lending', label: 'Cho vay', icon: '🤝', color: 'bg-amber-500' },
+                { id: 'hui', label: 'Quản lý Hụi', icon: '🎋', color: 'bg-purple-500' }
               ].map(t => (
                 <button
                   key={t.id}
@@ -169,6 +196,76 @@ export const WalletManager: React.FC<Props> = ({ wallets, onAdd, onDelete, onUpd
             </div>
           )}
 
+          {walletType === 'hui' && (
+            <div className="p-6 bg-purple-50/50 rounded-2xl border border-purple-100 space-y-4 animate-in fade-in duration-300">
+              <div className="text-xs font-black text-purple-700 uppercase tracking-wider mb-2 flex items-center gap-2">
+                <span>🎋</span> Cấu hình dây Hụi / Họ / Phường
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-[10px] font-black text-purple-600 uppercase tracking-widest mb-1.5 ml-1">1. Số tiền tham gia (dây hụi)</label>
+                  <input 
+                    type="text" 
+                    inputMode="numeric"
+                    value={huiShareAmount} 
+                    onChange={e => setHuiShareAmount(formatInputNumber(e.target.value))} 
+                    className="w-full px-4 py-3 rounded-xl border-purple-200 text-sm font-bold focus:ring-4 focus:ring-purple-50 outline-none" 
+                    placeholder="Ví dụ: 10.000.000" 
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-purple-600 uppercase tracking-widest mb-1.5 ml-1">2. Tổng số kỳ</label>
+                  <input 
+                    type="number" 
+                    value={huiTotalPeriods} 
+                    onChange={e => setHuiTotalPeriods(e.target.value)} 
+                    className="w-full px-4 py-3 rounded-xl border-purple-200 text-sm font-bold focus:ring-4 focus:ring-purple-50 outline-none" 
+                    placeholder="Ví dụ: 12" 
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-purple-600 uppercase tracking-widest mb-1.5 ml-1">3. Tiền định mức hằng ngày</label>
+                  <input 
+                    type="text" 
+                    inputMode="numeric"
+                    value={huiDailyQuota} 
+                    onChange={e => setHuiDailyQuota(formatInputNumber(e.target.value))} 
+                    className="w-full px-4 py-3 rounded-xl border-purple-200 text-sm font-bold focus:ring-4 focus:ring-purple-50 outline-none" 
+                    placeholder="Ví dụ: 100.000" 
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-purple-100">
+                <div>
+                  <label className="block text-[10px] font-black text-purple-600 uppercase tracking-widest mb-1.5 ml-1">Số kỳ đã đóng ban đầu</label>
+                  <input 
+                    type="number" 
+                    value={huiCompletedPeriods} 
+                    onChange={e => setHuiCompletedPeriods(e.target.value)} 
+                    className="w-full px-4 py-3 rounded-xl border-purple-200 text-sm font-bold focus:ring-4 focus:ring-purple-50 outline-none" 
+                    placeholder="0" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-purple-600 uppercase tracking-widest mb-1.5 ml-1">Tổng tiền thực tế đã đóng ban đầu</label>
+                  <input 
+                    type="text" 
+                    inputMode="numeric"
+                    value={huiTotalActualPaid} 
+                    onChange={e => setHuiTotalActualPaid(formatInputNumber(e.target.value))} 
+                    className="w-full px-4 py-3 rounded-xl border-purple-200 text-sm font-bold focus:ring-4 focus:ring-purple-50 outline-none" 
+                    placeholder="0" 
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
           <button type="submit" className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-indigo-100 active:scale-[0.98] transition-all">
             Tạo ví mới
           </button>
@@ -178,11 +275,12 @@ export const WalletManager: React.FC<Props> = ({ wallets, onAdd, onDelete, onUpd
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {wallets.map(wallet => {
           const isDebtWallet = wallet.id.includes('debt') || (typeof wallet.name === 'string' && wallet.name.toLowerCase().includes('nợ')) || wallet.subType === 'debt';
-          const typeLabel = wallet.subType === 'payment' ? 'Thanh toán' : wallet.subType === 'debit' ? 'Ghi nợ' : wallet.subType === 'savings' ? 'Tiết kiệm' : 'Khoản nợ';
-          const typeColor = wallet.subType === 'payment' ? 'text-indigo-500' : wallet.subType === 'debit' ? 'text-sky-500' : wallet.subType === 'savings' ? 'text-emerald-500' : 'text-rose-500';
+          const isHui = wallet.subType === 'hui';
+          const typeLabel = wallet.subType === 'payment' ? 'Thanh toán' : wallet.subType === 'debit' ? 'Ghi nợ' : wallet.subType === 'savings' ? 'Tiết kiệm' : wallet.subType === 'lending' ? 'Cho vay' : wallet.subType === 'hui' ? 'Quản lý Hụi' : 'Khoản nợ';
+          const typeColor = wallet.subType === 'payment' ? 'text-indigo-500' : wallet.subType === 'debit' ? 'text-sky-500' : wallet.subType === 'savings' ? 'text-emerald-500' : wallet.subType === 'lending' ? 'text-amber-500' : wallet.subType === 'hui' ? 'text-purple-600' : 'text-rose-500';
           
           return (
-            <div key={wallet.id} className={`p-5 rounded-3xl border flex items-center gap-4 group transition-all ${isDebtWallet ? 'bg-rose-50/30 border-rose-100 hover:border-rose-300' : wallet.isSavings ? 'bg-emerald-50/30 border-emerald-100 hover:border-emerald-300' : 'bg-slate-50 border-slate-100 hover:border-indigo-200 hover:bg-white'}`}>
+            <div key={wallet.id} className={`p-5 rounded-3xl border flex items-center gap-4 group transition-all ${isDebtWallet ? 'bg-rose-50/30 border-rose-100 hover:border-rose-300' : wallet.isSavings ? 'bg-emerald-50/30 border-emerald-100 hover:border-emerald-300' : isHui ? 'bg-purple-50/30 border-purple-100 hover:border-purple-300' : 'bg-slate-50 border-slate-100 hover:border-indigo-200 hover:bg-white'}`}>
               {deletingId === wallet.id ? (
                 <div className="flex-1 flex items-center justify-between animate-in fade-in slide-in-from-right-2 duration-200">
                   <p className="text-[10px] font-black text-rose-600 uppercase">Xóa ví "{wallet.name}"?</p>
