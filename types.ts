@@ -21,10 +21,18 @@ export interface Wallet {
   icon: string;
   color: string;
   isSavings?: boolean;
-  subType?: 'payment' | 'debit' | 'savings' | 'debt' | 'lending';
+  subType?: 'payment' | 'debit' | 'savings' | 'debt' | 'lending' | 'hui';
   startDate?: string;
   interestRate?: number;
   termMonths?: number;
+
+  // Thuộc tính dành cho Hụi / Họ / Phường
+  huiShareAmount?: number;      // 1./ Số tiền tham gia
+  huiTotalPeriods?: number;     // 2./ Tổng số kỳ
+  huiCompletedPeriods?: number; // 2./ Số kỳ đã đóng/hoàn thành
+  huiDailyQuota?: number;       // 3./ Tiền định mức hằng ngày
+  huiTotalActualPaid?: number;  // 4./ Tổng số tiền đóng thực tế hằng ngày
+  huiIsEnded?: boolean;         // Trạng thái đã ngưng / tất toán hụi
 }
 
 export interface FavoriteItem {
