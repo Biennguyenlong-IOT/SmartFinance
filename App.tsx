@@ -17,7 +17,7 @@ import { LendingActionModal } from './components/LendingActionModal';
 import { CategoryManager } from './components/CategoryManager';
 import { WalletManager } from './components/WalletManager';
 import { syncToSheet, fetchFromSheet } from './services/sheetService';
-import { formatCurrency } from './utils';
+import { formatCurrency, getHuiStats } from './utils';
 
 const DEFAULT_PASSWORD = '123456';
 const STORAGE_KEY = 'spendwise_data_v12';
@@ -391,7 +391,8 @@ const App: React.FC = () => {
 
     const paymentDate = new Date().toISOString();
     const txId = 'hui-contrib-' + Math.random().toString(36).substr(2, 9);
-    const completedPeriods = (huiWallet.huiCompletedPeriods || 0) + 1;
+    const currentStats = getHuiStats(huiWallet, state.transactions);
+    const completedPeriods = currentStats.completedPeriods + 1;
     const note = isFirstPeriod 
       ? `Đóng hụi kỳ 1 (Gồm tiền tham gia ${formatCurrency(shareAmount)}₫): ${huiWallet.name}` 
       : `Đóng hụi kỳ ${completedPeriods}: ${huiWallet.name}`;
@@ -411,7 +412,7 @@ const App: React.FC = () => {
       icon: '🎋'
     };
 
-    const newTotalActualPaid = (huiWallet.huiTotalActualPaid || 0) + totalPaidDeducted;
+    const newTotalActualPaid = currentStats.totalActualPaid + totalPaidDeducted;
 
     const updatedWallets = state.wallets.map(w => {
       if (w.id === sourceWalletId) {
@@ -518,6 +519,33 @@ const App: React.FC = () => {
     }
   };
 
+  const handleUpdateHuiWallet = async (updatedWallet: Wallet) => {
+    const updatedWallets = state.wallets.map(w => w.id === updatedWallet.id ? updatedWallet : w);
+    const updatedState = { ...state, wallets: updatedWallets };
+
+    setState(updatedState);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedState));
+
+    if (state.googleSheetUrl) {
+      setIsSyncing(true);
+      try {
+        await syncToSheet(state.googleSheetUrl, {
+          action: 'sync_all',
+          wallets: updatedWallets,
+          categories: state.categories,
+          favorites: state.favorites,
+          settingsPassword: state.settingsPassword,
+          transactions: state.transactions
+        });
+        setLastSynced(new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }));
+      } catch (err) {
+        console.error("Lỗi cập nhật ví hụi:", err);
+      } finally {
+        setIsSyncing(false);
+      }
+    }
+  };
+
   const totalAvailableAssets = state.wallets
     .filter(w => !isSavingsWallet(w) && !isDebtWallet(w) && !isLendingWallet(w) && !isHuiWallet(w))
     .reduce((sum, w) => sum + w.balance, 0);
@@ -566,10 +594,12 @@ const App: React.FC = () => {
         <HuiDetailModal 
           wallet={viewingHuiWallet.wallet} 
           wallets={state.wallets}
+          transactions={state.transactions}
           initialMode={viewingHuiWallet.mode}
           onClose={() => setViewingHuiWallet(null)} 
           onContribute={handleHuiContribution}
           onSettle={handleSettleHui}
+          onUpdateWallet={handleUpdateHuiWallet}
         />
       )}
 
