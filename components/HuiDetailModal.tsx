@@ -1,29 +1,57 @@
 import React, { useState } from 'react';
-import { Wallet } from '../types';
-import { formatCurrency, formatInputNumber, parseInputNumber } from '../utils';
+import { Wallet, Transaction } from '../types';
+import { formatCurrency, formatInputNumber, parseInputNumber, getHuiStats } from '../utils';
 
 interface Props {
   wallet: Wallet;
   wallets: Wallet[];
-  initialMode?: 'view' | 'contribute' | 'settle';
+  transactions?: Transaction[];
+  initialMode?: 'view' | 'contribute' | 'settle' | 'edit';
   onClose: () => void;
   onContribute: (huiWalletId: string, sourceWalletId: string, actualPaidAmount: number, isFirstPeriod: boolean) => void;
   onSettle: (huiWalletId: string, targetWalletId: string, finalSettlementAmount: number) => void;
+  onUpdateWallet?: (updatedWallet: Wallet) => void;
 }
 
 export const HuiDetailModal: React.FC<Props> = ({
   wallet,
   wallets,
+  transactions = [],
   initialMode = 'view',
   onClose,
   onContribute,
-  onSettle
+  onSettle,
+  onUpdateWallet
 }) => {
-  const [activeTab, setActiveTab] = useState<'view' | 'contribute' | 'settle'>(initialMode);
+  const [activeTab, setActiveTab] = useState<'view' | 'contribute' | 'settle' | 'edit'>(initialMode);
 
   // Confirmation state
   const [confirmStep, setConfirmStep] = useState<'none' | 'contribute' | 'settle'>('none');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Trích xuất & tính toán thông tin hụi tự động (kể cả cho dữ liệu cũ)
+  const huiStats = getHuiStats(wallet, transactions);
+  const {
+    shareAmount,
+    totalPeriods,
+    completedPeriods,
+    dailyQuota,
+    totalActualPaid,
+    expectedQuotaSoFar,
+    diff,
+    remainingPeriods,
+    remainingQuota,
+    finalRealAmount,
+    huiTxs
+  } = huiStats;
+
+  // Edit form states
+  const [editName, setEditName] = useState(wallet.name);
+  const [editShareAmount, setEditShareAmount] = useState(formatCurrency(shareAmount));
+  const [editTotalPeriods, setEditTotalPeriods] = useState(String(totalPeriods));
+  const [editDailyQuota, setEditDailyQuota] = useState(formatCurrency(dailyQuota));
+  const [editCompletedPeriods, setEditCompletedPeriods] = useState(String(completedPeriods));
+  const [editTotalActualPaid, setEditTotalActualPaid] = useState(formatCurrency(totalActualPaid));
 
   // Lọc các ví có thể trích/nhận tiền (Ví thanh toán / Ghi nợ)
   const validWallets = wallets.filter(w => {
@@ -39,27 +67,11 @@ export const HuiDetailModal: React.FC<Props> = ({
   
   // Input tiền đóng thực tế
   const [inputDailyActual, setInputDailyActual] = useState(
-    wallet.huiDailyQuota ? formatCurrency(wallet.huiDailyQuota) : ''
+    dailyQuota ? formatCurrency(dailyQuota) : ''
   );
-
-  // Trích xuất thông tin hụi
-  const shareAmount = wallet.huiShareAmount || 0;
-  const totalPeriods = wallet.huiTotalPeriods || 12;
-  const completedPeriods = wallet.huiCompletedPeriods || 0;
-  const dailyQuota = wallet.huiDailyQuota || 0;
-  const totalActualPaid = wallet.huiTotalActualPaid ?? wallet.balance ?? 0;
 
   // 4.1/ Kỳ đầu tiên check
   const isFirstPeriod = completedPeriods === 0;
-
-  // 5./ Số tiền chênh lệch giữa định mức và số tiền đóng thực tế: (số kỳ đã đóng * tiền định kỳ) - tiền đã đóng
-  const expectedQuotaSoFar = dailyQuota * completedPeriods;
-  const diff = expectedQuotaSoFar - totalActualPaid;
-
-  // 6./ Công thức số tiền thực tế khi ngưng trước hạn
-  const remainingPeriods = Math.max(0, totalPeriods - completedPeriods);
-  const remainingQuota = dailyQuota * remainingPeriods;
-  const finalRealAmount = totalActualPaid + diff - remainingQuota;
 
   // Tiền thực tế cần trích khi đóng hụi
   const actualInput = parseInputNumber(inputDailyActual);
@@ -68,6 +80,25 @@ export const HuiDetailModal: React.FC<Props> = ({
   // Kiểm tra số dư ví trích tiền
   const isContributeBalanceInsufficient = selectedWallet ? selectedWallet.balance < totalDeducted : false;
   const isSettleBalanceInsufficient = (finalRealAmount < 0 && selectedWallet) ? selectedWallet.balance < Math.abs(finalRealAmount) : false;
+
+  const handleSaveEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!onUpdateWallet) return;
+    const newCompleted = parseInt(editCompletedPeriods) || 0;
+    const newPaid = parseInputNumber(editTotalActualPaid);
+    const updatedWallet: Wallet = {
+      ...wallet,
+      name: editName.trim() || wallet.name,
+      huiShareAmount: parseInputNumber(editShareAmount),
+      huiTotalPeriods: parseInt(editTotalPeriods) || 12,
+      huiDailyQuota: parseInputNumber(editDailyQuota),
+      huiCompletedPeriods: newCompleted,
+      huiTotalActualPaid: newPaid,
+      balance: newPaid
+    };
+    onUpdateWallet(updatedWallet);
+    setActiveTab('view');
+  };
 
   const handleContributionSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -255,27 +286,34 @@ export const HuiDetailModal: React.FC<Props> = ({
         ) : (
           <>
             {/* Tab switcher */}
-            <div className="flex border-b border-slate-100 bg-slate-50/50 p-2 gap-2">
+            <div className="flex border-b border-slate-100 bg-slate-50/50 p-2 gap-1.5 overflow-x-auto">
               <button 
                 type="button"
                 onClick={() => { setActiveTab('view'); setErrorMessage(null); }}
-                className={`flex-1 py-3 text-xs font-black uppercase tracking-wider rounded-2xl transition-all ${activeTab === 'view' ? 'bg-white text-purple-700 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                className={`flex-1 min-w-[80px] py-3 text-[11px] font-black uppercase tracking-wider rounded-2xl transition-all ${activeTab === 'view' ? 'bg-white text-purple-700 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
               >
-                📊 Chi tiết dây hụi
+                📊 Chi tiết
               </button>
               <button 
                 type="button"
                 onClick={() => { setActiveTab('contribute'); setErrorMessage(null); }}
-                className={`flex-1 py-3 text-xs font-black uppercase tracking-wider rounded-2xl transition-all ${activeTab === 'contribute' ? 'bg-white text-purple-700 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                className={`flex-1 min-w-[80px] py-3 text-[11px] font-black uppercase tracking-wider rounded-2xl transition-all ${activeTab === 'contribute' ? 'bg-white text-purple-700 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
               >
                 💸 Đóng hụi
               </button>
               <button 
                 type="button"
                 onClick={() => { setActiveTab('settle'); setErrorMessage(null); }}
-                className={`flex-1 py-3 text-xs font-black uppercase tracking-wider rounded-2xl transition-all ${activeTab === 'settle' ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                className={`flex-1 min-w-[80px] py-3 text-[11px] font-black uppercase tracking-wider rounded-2xl transition-all ${activeTab === 'settle' ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
               >
-                🛑 Ngưng trước hạn
+                🛑 Ngưng hụi
+              </button>
+              <button 
+                type="button"
+                onClick={() => { setActiveTab('edit'); setErrorMessage(null); }}
+                className={`flex-1 min-w-[80px] py-3 text-[11px] font-black uppercase tracking-wider rounded-2xl transition-all ${activeTab === 'edit' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+              >
+                ⚙️ Sửa Hụi
               </button>
             </div>
 
@@ -357,6 +395,26 @@ export const HuiDetailModal: React.FC<Props> = ({
                     </div>
                   </div>
 
+                  {/* History of contribution transactions */}
+                  {huiTxs.length > 0 && (
+                    <div className="space-y-3 pt-2">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                        📜 Lịch sử đóng hụi đã ghi nhận ({huiTxs.length} giao dịch)
+                      </p>
+                      <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                        {huiTxs.map(t => (
+                          <div key={t.id} className="p-3 bg-slate-50 border border-slate-100 rounded-xl flex justify-between items-center text-xs">
+                            <div>
+                              <p className="font-black text-slate-800">{t.note}</p>
+                              <p className="text-[10px] font-bold text-slate-400">{new Date(t.date).toLocaleDateString('vi-VN')} - Trích từ {t.walletName || 'Ví'}</p>
+                            </div>
+                            <span className="font-black text-purple-700">-{formatCurrency(t.amount)}₫</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex gap-3">
                     <button 
                       type="button"
@@ -367,10 +425,17 @@ export const HuiDetailModal: React.FC<Props> = ({
                     </button>
                     <button 
                       type="button"
-                      onClick={() => setActiveTab('settle')}
-                      className="py-4 px-5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-2xl font-black text-xs uppercase tracking-widest transition-all active:scale-95"
+                      onClick={() => setActiveTab('edit')}
+                      className="py-4 px-4 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-2xl font-black text-xs uppercase tracking-widest transition-all active:scale-95"
                     >
-                      Ngưng hụi
+                      ⚙️ Sửa Hụi
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => setActiveTab('settle')}
+                      className="py-4 px-4 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-2xl font-black text-xs uppercase tracking-widest transition-all active:scale-95"
+                    >
+                      Ngưng
                     </button>
                   </div>
                 </div>
@@ -593,6 +658,117 @@ export const HuiDetailModal: React.FC<Props> = ({
                       className="flex-1 py-4 bg-rose-600 text-white shadow-xl shadow-rose-100 hover:bg-rose-700 rounded-2xl font-black uppercase text-xs tracking-widest transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       {isSettleBalanceInsufficient ? 'Không đủ số dư' : 'Xác nhận ngưng Hụi'}
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {activeTab === 'edit' && (
+                <form onSubmit={handleSaveEdit} className="space-y-4">
+                  <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-2xl text-xs font-bold text-indigo-900 space-y-1">
+                    <p className="font-black">⚙️ Cập nhật thông số dây hụi</p>
+                    <p className="text-indigo-700 font-normal">Điều chỉnh trực tiếp số kỳ đã đóng hoặc tổng số tiền thực tế nếu dữ liệu cũ chưa đúng.</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 ml-1">
+                      Tên dây hụi
+                    </label>
+                    <input 
+                      type="text"
+                      value={editName}
+                      onChange={e => setEditName(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-bold text-slate-800 focus:ring-2 focus:ring-indigo-100 outline-none"
+                      required
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 ml-1">
+                        1. Tiền tham gia (₫)
+                      </label>
+                      <input 
+                        type="text"
+                        inputMode="numeric"
+                        value={editShareAmount}
+                        onChange={e => setEditShareAmount(formatInputNumber(e.target.value))}
+                        className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm font-bold text-slate-800 focus:ring-2 focus:ring-indigo-100 outline-none"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 ml-1">
+                        2. Tổng số kỳ
+                      </label>
+                      <input 
+                        type="number"
+                        min="1"
+                        value={editTotalPeriods}
+                        onChange={e => setEditTotalPeriods(e.target.value)}
+                        className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm font-bold text-slate-800 focus:ring-2 focus:ring-indigo-100 outline-none"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 ml-1">
+                        3. Định mức/ngày (₫)
+                      </label>
+                      <input 
+                        type="text"
+                        inputMode="numeric"
+                        value={editDailyQuota}
+                        onChange={e => setEditDailyQuota(formatInputNumber(e.target.value))}
+                        className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm font-bold text-slate-800 focus:ring-2 focus:ring-indigo-100 outline-none"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-black text-indigo-700 uppercase tracking-widest mb-1 ml-1">
+                        Kỳ đã đóng (Hoàn thành)
+                      </label>
+                      <input 
+                        type="number"
+                        min="0"
+                        max={editTotalPeriods}
+                        value={editCompletedPeriods}
+                        onChange={e => setEditCompletedPeriods(e.target.value)}
+                        className="w-full px-3 py-2.5 rounded-xl border-2 border-indigo-300 text-sm font-black text-indigo-900 focus:ring-2 focus:ring-indigo-100 outline-none bg-indigo-50/30"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-black text-indigo-700 uppercase tracking-widest mb-1 ml-1">
+                      Tổng tiền thực tế đã đóng tích lũy (₫)
+                    </label>
+                    <input 
+                      type="text"
+                      inputMode="numeric"
+                      value={editTotalActualPaid}
+                      onChange={e => setEditTotalActualPaid(formatInputNumber(e.target.value))}
+                      className="w-full px-4 py-2.5 rounded-xl border-2 border-indigo-300 text-base font-black text-indigo-900 focus:ring-2 focus:ring-indigo-100 outline-none bg-indigo-50/30"
+                      required
+                    />
+                  </div>
+
+                  <div className="flex gap-3 pt-3">
+                    <button 
+                      type="button"
+                      onClick={() => setActiveTab('view')}
+                      className="flex-1 py-3.5 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-2xl font-black uppercase text-xs tracking-widest transition-all"
+                    >
+                      Hủy
+                    </button>
+                    <button 
+                      type="submit"
+                      className="flex-1 py-3.5 bg-indigo-600 text-white shadow-xl shadow-indigo-100 hover:bg-indigo-700 rounded-2xl font-black uppercase text-xs tracking-widest transition-all active:scale-95"
+                    >
+                      Lưu thông số
                     </button>
                   </div>
                 </form>
