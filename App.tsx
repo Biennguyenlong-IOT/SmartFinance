@@ -11,11 +11,13 @@ import { FavoriteManager } from './components/FavoriteManager';
 import { PaymentModal } from './components/PaymentModal';
 import { DebtLedgerModal } from './components/DebtLedgerModal';
 import { SavingsDetailModal } from './components/SavingsDetailModal';
+import { HuiDetailModal } from './components/HuiDetailModal';
 import { BorrowModal } from './components/BorrowModal';
 import { LendingActionModal } from './components/LendingActionModal';
 import { CategoryManager } from './components/CategoryManager';
 import { WalletManager } from './components/WalletManager';
 import { syncToSheet, fetchFromSheet } from './services/sheetService';
+import { formatCurrency } from './utils';
 
 const DEFAULT_PASSWORD = '123456';
 const STORAGE_KEY = 'spendwise_data_v12';
@@ -24,6 +26,7 @@ const SHEET_URL = 'https://script.google.com/macros/s/AKfycby16fHNP_5odsuRdW6L1j
 const isDebtWallet = (w: Wallet) => w.subType === 'debt' || w.id.includes('debt') || (typeof w.name === 'string' && w.name.toLowerCase().includes('nợ'));
 const isSavingsWallet = (w: Wallet) => w.isSavings === true || w.subType === 'savings';
 const isLendingWallet = (w: Wallet) => w.subType === 'lending' || (typeof w.name === 'string' && w.name.toLowerCase().includes('cho vay'));
+const isHuiWallet = (w: Wallet) => w.subType === 'hui';
 
 // Hàm lọc trùng lặp theo ID
 function deduplicate<T extends { id: string }>(arr: T[]): T[] {
@@ -59,6 +62,7 @@ const App: React.FC = () => {
   const [selectedDebtWallet, setSelectedDebtWallet] = useState<Wallet | null>(null);
   const [viewingLedgerWallet, setViewingLedgerWallet] = useState<Wallet | null>(null);
   const [viewingSavingsWallet, setViewingSavingsWallet] = useState<Wallet | null>(null);
+  const [viewingHuiWallet, setViewingHuiWallet] = useState<{ wallet: Wallet, mode?: 'view' | 'contribute' | 'settle' } | null>(null);
   const [borrowingFromDebtWallet, setBorrowingFromDebtWallet] = useState<Wallet | null>(null);
   const [lendingActionWallet, setLendingActionWallet] = useState<{ wallet: Wallet, mode: 'collect' | 'lend_more' } | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -372,8 +376,150 @@ const App: React.FC = () => {
     }
   };
 
+  const handleHuiContribution = async (
+    huiWalletId: string, 
+    sourceWalletId: string, 
+    actualPaidAmount: number, 
+    isFirstPeriod: boolean
+  ) => {
+    const huiWallet = state.wallets.find(w => w.id === huiWalletId);
+    const sourceWallet = state.wallets.find(w => w.id === sourceWalletId);
+    if (!huiWallet || !sourceWallet) return;
+
+    const shareAmount = huiWallet.huiShareAmount || 0;
+    const totalPaidDeducted = isFirstPeriod ? actualPaidAmount + shareAmount : actualPaidAmount;
+
+    const paymentDate = new Date().toISOString();
+    const txId = 'hui-contrib-' + Math.random().toString(36).substr(2, 9);
+    const completedPeriods = (huiWallet.huiCompletedPeriods || 0) + 1;
+    const note = isFirstPeriod 
+      ? `Đóng hụi kỳ 1 (Gồm tiền tham gia ${formatCurrency(shareAmount)}₫): ${huiWallet.name}` 
+      : `Đóng hụi kỳ ${completedPeriods}: ${huiWallet.name}`;
+
+    const contribTx: Transaction = {
+      id: txId,
+      amount: totalPaidDeducted,
+      date: paymentDate,
+      note,
+      type: CategoryType.EXPENSE,
+      categoryId: 'hui_contribution',
+      categoryName: 'Đóng hụi',
+      walletId: sourceWalletId,
+      walletName: sourceWallet.name,
+      toWalletId: huiWalletId,
+      toWalletName: huiWallet.name,
+      icon: '🎋'
+    };
+
+    const newTotalActualPaid = (huiWallet.huiTotalActualPaid || 0) + totalPaidDeducted;
+
+    const updatedWallets = state.wallets.map(w => {
+      if (w.id === sourceWalletId) {
+        return { ...w, balance: w.balance - totalPaidDeducted };
+      }
+      if (w.id === huiWalletId) {
+        return {
+          ...w,
+          balance: newTotalActualPaid,
+          huiTotalActualPaid: newTotalActualPaid,
+          huiCompletedPeriods: completedPeriods
+        };
+      }
+      return w;
+    });
+
+    const newTransactions = [...state.transactions, contribTx];
+    const updatedState = { ...state, wallets: updatedWallets, transactions: newTransactions };
+
+    setState(updatedState);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedState));
+    setViewingHuiWallet(null);
+
+    if (state.googleSheetUrl) {
+      setIsSyncing(true);
+      try {
+        await syncToSheet(state.googleSheetUrl, {
+          action: 'sync_all',
+          wallets: updatedWallets,
+          categories: state.categories,
+          favorites: state.favorites,
+          settingsPassword: state.settingsPassword,
+          transactions: newTransactions
+        });
+        setLastSynced(new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }));
+      } catch (err) {
+        console.error("Lỗi đồng bộ đóng hụi:", err);
+      } finally {
+        setIsSyncing(false);
+      }
+    }
+  };
+
+  const handleSettleHui = async (
+    huiWalletId: string, 
+    targetWalletId: string, 
+    finalSettlementAmount: number
+  ) => {
+    const huiWallet = state.wallets.find(w => w.id === huiWalletId);
+    const targetWallet = state.wallets.find(w => w.id === targetWalletId);
+    if (!huiWallet || !targetWallet) return;
+
+    const paymentDate = new Date().toISOString();
+    const txId = 'hui-settle-' + Math.random().toString(36).substr(2, 9);
+    const isPositive = finalSettlementAmount >= 0;
+
+    const settleTx: Transaction = {
+      id: txId,
+      amount: Math.abs(finalSettlementAmount),
+      date: paymentDate,
+      note: `Ngưng hụi trước hạn: ${huiWallet.name} (${isPositive ? 'Nhận tiền về' : 'Trừ tiền bù'})`,
+      type: isPositive ? CategoryType.INCOME : CategoryType.EXPENSE,
+      categoryId: 'hui_settlement',
+      categoryName: 'Ngưng hụi trước hạn',
+      walletId: targetWalletId,
+      walletName: targetWallet.name,
+      icon: '🛑'
+    };
+
+    const updatedWallets = state.wallets.map(w => {
+      if (w.id === targetWalletId) {
+        return { ...w, balance: w.balance + finalSettlementAmount };
+      }
+      if (w.id === huiWalletId) {
+        return { ...w, balance: 0, huiIsEnded: true };
+      }
+      return w;
+    });
+
+    const newTransactions = [...state.transactions, settleTx];
+    const updatedState = { ...state, wallets: updatedWallets, transactions: newTransactions };
+
+    setState(updatedState);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedState));
+    setViewingHuiWallet(null);
+
+    if (state.googleSheetUrl) {
+      setIsSyncing(true);
+      try {
+        await syncToSheet(state.googleSheetUrl, {
+          action: 'sync_all',
+          wallets: updatedWallets,
+          categories: state.categories,
+          favorites: state.favorites,
+          settingsPassword: state.settingsPassword,
+          transactions: newTransactions
+        });
+        setLastSynced(new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }));
+      } catch (err) {
+        console.error("Lỗi đồng bộ ngưng hụi:", err);
+      } finally {
+        setIsSyncing(false);
+      }
+    }
+  };
+
   const totalAvailableAssets = state.wallets
-    .filter(w => !isSavingsWallet(w) && !isDebtWallet(w) && !isLendingWallet(w))
+    .filter(w => !isSavingsWallet(w) && !isDebtWallet(w) && !isLendingWallet(w) && !isHuiWallet(w))
     .reduce((sum, w) => sum + w.balance, 0);
 
   return (
@@ -413,6 +559,17 @@ const App: React.FC = () => {
           wallets={state.wallets}
           onClose={() => setViewingSavingsWallet(null)} 
           onSettle={handleSettleSavings}
+        />
+      )}
+
+      {viewingHuiWallet && (
+        <HuiDetailModal 
+          wallet={viewingHuiWallet.wallet} 
+          wallets={state.wallets}
+          initialMode={viewingHuiWallet.mode}
+          onClose={() => setViewingHuiWallet(null)} 
+          onContribute={handleHuiContribution}
+          onSettle={handleSettleHui}
         />
       )}
 
@@ -473,6 +630,7 @@ const App: React.FC = () => {
               onDebtClick={setSelectedDebtWallet} 
               onViewLedger={setViewingLedgerWallet}
               onSavingsClick={setViewingSavingsWallet}
+              onHuiClick={(wallet, mode) => setViewingHuiWallet({ wallet, mode })}
             />
             <ExpenseCharts transactions={state.transactions} categories={state.categories} />
             <RecentTransactions transactions={state.transactions} categories={state.categories} wallets={state.wallets} onViewAll={() => setActiveTab('history')} />
