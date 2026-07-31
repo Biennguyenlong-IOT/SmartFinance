@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Wallet, Transaction } from '../types';
 import { formatCurrency, formatInputNumber, parseInputNumber, getHuiStats } from '../utils';
 
@@ -52,6 +52,15 @@ export const HuiDetailModal: React.FC<Props> = ({
   const [editDailyQuota, setEditDailyQuota] = useState(formatCurrency(dailyQuota));
   const [editCompletedPeriods, setEditCompletedPeriods] = useState(String(completedPeriods));
   const [editTotalActualPaid, setEditTotalActualPaid] = useState(formatCurrency(totalActualPaid));
+
+  useEffect(() => {
+    setEditName(wallet.name);
+    setEditShareAmount(formatCurrency(shareAmount));
+    setEditTotalPeriods(String(totalPeriods));
+    setEditDailyQuota(formatCurrency(dailyQuota));
+    setEditCompletedPeriods(String(completedPeriods));
+    setEditTotalActualPaid(formatCurrency(totalActualPaid));
+  }, [wallet.id, wallet.name, shareAmount, totalPeriods, dailyQuota, completedPeriods, totalActualPaid]);
 
   // Lọc các ví có thể trích/nhận tiền (Ví thanh toán / Ghi nợ)
   const validWallets = wallets.filter(w => {
