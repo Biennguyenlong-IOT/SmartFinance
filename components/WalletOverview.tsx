@@ -9,24 +9,28 @@ interface Props {
   onDebtClick: (wallet: Wallet) => void;
   onViewLedger: (wallet: Wallet) => void;
   onSavingsClick: (wallet: Wallet) => void;
+  onHuiClick?: (wallet: Wallet, mode?: 'view' | 'contribute' | 'settle') => void;
 }
 
 const isDebtWallet = (w: Wallet) => w.subType === 'debt' || w.id.includes('debt') || (typeof w.name === 'string' && w.name.toLowerCase().includes('nợ'));
 const isLendingWallet = (w: Wallet) => w.subType === 'lending' || (typeof w.name === 'string' && w.name.toLowerCase().includes('cho vay'));
 const isSavingsWallet = (w: Wallet) => w.isSavings === true || w.subType === 'savings';
+const isHuiWallet = (w: Wallet) => w.subType === 'hui';
 
-export const WalletOverview: React.FC<Props> = ({ wallets, transactions, onDebtClick, onViewLedger, onSavingsClick }) => {
+export const WalletOverview: React.FC<Props> = ({ wallets, transactions, onDebtClick, onViewLedger, onSavingsClick, onHuiClick }) => {
   // Lọc tách biệt các loại tài khoản:
-  // - assets: Chỉ tính tài sản KHA DUNG (Tiền mặt, ví thông thường...) - Không chứa Tiết kiệm, Debt, Cho vay
-  const assets = wallets.filter(w => !isDebtWallet(w) && !isLendingWallet(w) && !isSavingsWallet(w));
+  // - assets: Chỉ tính tài sản KHA DUNG (Tiền mặt, ví thông thường...) - Không chứa Tiết kiệm, Debt, Cho vay, Hụi
+  const assets = wallets.filter(w => !isDebtWallet(w) && !isLendingWallet(w) && !isSavingsWallet(w) && !isHuiWallet(w));
   const savings = wallets.filter(w => isSavingsWallet(w));
   const debts = wallets.filter(w => isDebtWallet(w));
   const lendings = wallets.filter(w => isLendingWallet(w));
+  const huis = wallets.filter(w => isHuiWallet(w));
   
   const totalAssets = assets.reduce((sum, w) => sum + w.balance, 0); // Đây là Tài sản khả dụng thực thụ
   const totalSavings = savings.reduce((sum, w) => sum + w.balance, 0);
   const totalDebts = debts.reduce((sum, w) => sum + Math.abs(w.balance), 0);
   const totalLendings = lendings.reduce((sum, w) => sum + w.balance, 0);
+  const totalHuiPaid = huis.reduce((sum, w) => sum + (w.huiTotalActualPaid ?? w.balance ?? 0), 0);
   
   const debtRatio = totalAssets > 0 ? (totalDebts / totalAssets) * 100 : (totalDebts > 0 ? 100 : 0);
 
@@ -68,6 +72,12 @@ export const WalletOverview: React.FC<Props> = ({ wallets, transactions, onDebtC
               <div className="bg-emerald-50/50 px-5 py-3 rounded-2xl border border-emerald-100 text-right">
                 <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-0.5 font-bold">Tổng tiết kiệm</p>
                 <p className="text-lg font-black text-emerald-800">+{formatCurrency(totalSavings)}₫</p>
+              </div>
+            )}
+            {totalHuiPaid > 0 && (
+              <div className="bg-purple-50 px-5 py-3 rounded-2xl border border-purple-100 text-right">
+                <p className="text-[9px] font-black text-purple-600 uppercase tracking-widest mb-0.5">Tổng đóng Hụi</p>
+                <p className="text-lg font-black text-purple-800">+{formatCurrency(totalHuiPaid)}₫</p>
               </div>
             )}
             {totalDebts > 0 && (
@@ -337,6 +347,98 @@ export const WalletOverview: React.FC<Props> = ({ wallets, transactions, onDebtC
                   >
                     📄
                   </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      {huis.length > 0 && (
+        <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100">
+          <h3 className="text-[10px] font-black text-purple-600 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
+            <span className="w-2.5 h-2.5 bg-purple-500 rounded-full animate-pulse"></span> Quản lý Hụi / Họ / Phường
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {huis.map(wallet => {
+              const shareAmount = wallet.huiShareAmount || 0;
+              const totalPeriods = wallet.huiTotalPeriods || 12;
+              const completedPeriods = wallet.huiCompletedPeriods || 0;
+              const dailyQuota = wallet.huiDailyQuota || 0;
+              const totalActualPaid = wallet.huiTotalActualPaid ?? wallet.balance ?? 0;
+              const expectedQuotaSoFar = dailyQuota * completedPeriods;
+              const diff = totalActualPaid - expectedQuotaSoFar;
+              const progress = totalPeriods > 0 ? (completedPeriods / totalPeriods) * 100 : 0;
+
+              return (
+                <div 
+                  key={wallet.id} 
+                  onClick={() => onHuiClick && onHuiClick(wallet, 'view')}
+                  className="relative group bg-slate-50/50 border border-slate-100 rounded-[2rem] p-6 hover:bg-white hover:shadow-xl hover:border-purple-200 transition-all cursor-pointer"
+                >
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-3xl shadow-sm border border-purple-100">
+                      {wallet.icon || '🎋'}
+                    </div>
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); onHuiClick && onHuiClick(wallet, 'contribute'); }}
+                        className="px-3 py-2 text-[10px] font-black text-purple-600 bg-white rounded-xl border border-purple-100 hover:bg-purple-50 shadow-sm transition-all active:scale-95"
+                      >
+                        + Đóng hụi
+                      </button>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); onHuiClick && onHuiClick(wallet, 'settle'); }}
+                        className="px-3 py-2 text-[10px] font-black text-rose-600 bg-white rounded-xl border border-rose-100 hover:bg-rose-50 shadow-sm transition-all active:scale-95"
+                      >
+                        Ngưng
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1">{wallet.name}</p>
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-2xl font-black text-purple-900">{formatCurrency(totalActualPaid)}</span>
+                        <span className="text-xs font-bold text-slate-400">₫ (đã đóng)</span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5 text-[10px] font-bold text-slate-500">
+                      <div className="flex justify-between">
+                        <span>1. Số tiền tham gia:</span>
+                        <span className="text-purple-700 font-black">{formatCurrency(shareAmount)}₫</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>2. Hạn đóng:</span>
+                        <span className="text-slate-800 font-black">{completedPeriods}/{totalPeriods} kỳ</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>3. Định mức/ngày:</span>
+                        <span className="text-slate-800 font-black">{formatCurrency(dailyQuota)}₫</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>5. Chênh lệch:</span>
+                        <span className={`font-black ${diff >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                          {diff >= 0 ? `+${formatCurrency(diff)}₫` : `${formatCurrency(diff)}₫`}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Progress Bar */}
+                    <div className="space-y-1 pt-1">
+                      <div className="flex justify-between text-[8px] font-black uppercase tracking-wider text-slate-400">
+                        <span>Tiến độ dây hụi</span>
+                        <span>{progress.toFixed(0)}%</span>
+                      </div>
+                      <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-purple-600 rounded-full transition-all duration-700"
+                          style={{ width: `${Math.min(100, progress)}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               );
             })}
