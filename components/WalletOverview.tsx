@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Wallet, Transaction, CategoryType } from '../types';
-import { formatCurrency } from '../utils';
+import { formatCurrency, getHuiStats } from '../utils';
 
 interface Props {
   wallets: Wallet[];
@@ -360,13 +360,8 @@ export const WalletOverview: React.FC<Props> = ({ wallets, transactions, onDebtC
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {huis.map(wallet => {
-              const shareAmount = wallet.huiShareAmount || 0;
-              const totalPeriods = wallet.huiTotalPeriods || 12;
-              const completedPeriods = wallet.huiCompletedPeriods || 0;
-              const dailyQuota = wallet.huiDailyQuota || 0;
-              const totalActualPaid = wallet.huiTotalActualPaid ?? wallet.balance ?? 0;
-              const expectedQuotaSoFar = dailyQuota * completedPeriods;
-              const diff = expectedQuotaSoFar - totalActualPaid;
+              const stats = getHuiStats(wallet, transactions);
+              const { shareAmount, totalPeriods, completedPeriods, dailyQuota, totalActualPaid, diff } = stats;
               const progress = totalPeriods > 0 ? (completedPeriods / totalPeriods) * 100 : 0;
 
               return (
