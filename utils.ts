@@ -85,21 +85,23 @@ export function getHuiStats(wallet: any, transactions: any[] = []) {
   const txCount = huiTxs.length;
   const txTotalPaid = huiTxs.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
 
-  // Tính tổng tiền thực tế đã đóng (kết hợp dữ liệu trực tiếp trong ví + lịch sử giao dịch)
-  let totalActualPaid = Number(wallet.huiTotalActualPaid) || 0;
-  if (txTotalPaid > totalActualPaid) {
+  // Lấy tổng tiền thực tế đã đóng (ưu tiên số liệu người dùng lưu/sửa trong ví)
+  let totalActualPaid = 0;
+  if (wallet.huiTotalActualPaid !== undefined && wallet.huiTotalActualPaid !== null) {
+    totalActualPaid = Number(wallet.huiTotalActualPaid) || 0;
+  } else if (txTotalPaid > 0) {
     totalActualPaid = txTotalPaid;
-  }
-  if (totalActualPaid === 0 && Number(wallet.balance) > 0) {
-    totalActualPaid = Number(wallet.balance);
+  } else {
+    totalActualPaid = Number(wallet.balance) || 0;
   }
 
-  // Tính số kỳ đã hoàn thành (kết hợp số kỳ trực tiếp + số giao dịch trong lịch sử)
-  let completedPeriods = Number(wallet.huiCompletedPeriods) || 0;
-  if (txCount > completedPeriods) {
+  // Lấy số kỳ đã hoàn thành (ưu tiên số kỳ người dùng lưu/sửa trực tiếp trong ví)
+  let completedPeriods = 0;
+  if (wallet.huiCompletedPeriods !== undefined && wallet.huiCompletedPeriods !== null) {
+    completedPeriods = Number(wallet.huiCompletedPeriods) || 0;
+  } else if (txCount > 0) {
     completedPeriods = txCount;
-  }
-  if (completedPeriods === 0 && dailyQuota > 0 && totalActualPaid > 0) {
+  } else if (dailyQuota > 0 && totalActualPaid > 0) {
     completedPeriods = Math.floor(totalActualPaid / dailyQuota);
   }
 
