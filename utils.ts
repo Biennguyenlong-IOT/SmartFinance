@@ -32,22 +32,39 @@ export const getRelativeTime = (date: string): string => {
 };
 
 export function getHuiStats(wallet: any, transactions: any[] = []) {
+  if (!wallet) {
+    return {
+      shareAmount: 0,
+      totalPeriods: 12,
+      completedPeriods: 0,
+      dailyQuota: 0,
+      totalActualPaid: 0,
+      expectedQuotaSoFar: 0,
+      diff: 0,
+      remainingPeriods: 12,
+      remainingQuota: 0,
+      finalRealAmount: 0,
+      huiTxs: []
+    };
+  }
+
   const shareAmount = Number(wallet.huiShareAmount) || 0;
   const totalPeriods = Number(wallet.huiTotalPeriods) || 12;
   const dailyQuota = Number(wallet.huiDailyQuota) || 0;
 
   // Lọc tất cả giao dịch đóng hụi liên quan tới ví này từ lịch sử giao dịch
-  const walletNameLower = (wallet.name || '').trim().toLowerCase();
-  const walletIdLower = (wallet.id || '').trim().toLowerCase();
+  const walletNameLower = String(wallet.name || '').trim().toLowerCase();
+  const walletIdLower = String(wallet.id || '').trim().toLowerCase();
 
-  const huiTxs = transactions.filter(t => {
-    const toWalletId = (t.toWalletId || '').trim().toLowerCase();
-    const walletId = (t.walletId || '').trim().toLowerCase();
-    const toWalletName = (t.toWalletName || '').trim().toLowerCase();
-    const walletName = (t.walletName || '').trim().toLowerCase();
-    const note = (t.note || '').trim().toLowerCase();
-    const categoryId = (t.categoryId || '').trim().toLowerCase();
-    const categoryName = (t.categoryName || '').trim().toLowerCase();
+  const huiTxs = (Array.isArray(transactions) ? transactions : []).filter(t => {
+    if (!t) return false;
+    const toWalletId = String(t.toWalletId || '').trim().toLowerCase();
+    const walletId = String(t.walletId || '').trim().toLowerCase();
+    const toWalletName = String(t.toWalletName || '').trim().toLowerCase();
+    const walletName = String(t.walletName || '').trim().toLowerCase();
+    const note = String(t.note || '').trim().toLowerCase();
+    const categoryId = String(t.categoryId || '').trim().toLowerCase();
+    const categoryName = String(t.categoryName || '').trim().toLowerCase();
 
     const matchesWallet = 
       (walletIdLower && (toWalletId === walletIdLower || walletId === walletIdLower)) ||
