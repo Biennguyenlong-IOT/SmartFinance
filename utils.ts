@@ -32,42 +32,65 @@ export const getRelativeTime = (date: string): string => {
 };
 
 export function getHuiStats(wallet: any, transactions: any[] = []) {
-  const shareAmount = wallet.huiShareAmount || 0;
-  const totalPeriods = wallet.huiTotalPeriods || 12;
-  const dailyQuota = wallet.huiDailyQuota || 0;
+  const shareAmount = Number(wallet.huiShareAmount) || 0;
+  const totalPeriods = Number(wallet.huiTotalPeriods) || 12;
+  const dailyQuota = Number(wallet.huiDailyQuota) || 0;
 
-  // Lọc tất cả giao dịch đóng hụi liên quan tới ví này
-  const huiTxs = transactions.filter(t => 
-    (t.toWalletId === wallet.id || t.walletId === wallet.id) && 
-    (t.categoryId === 'hui_contribution' || t.categoryName?.toLowerCase().includes('hụi') || t.note?.toLowerCase().includes('hụi'))
-  );
+  // Lọc tất cả giao dịch đóng hụi liên quan tới ví này từ lịch sử giao dịch
+  const walletNameLower = (wallet.name || '').trim().toLowerCase();
+  const walletIdLower = (wallet.id || '').trim().toLowerCase();
+
+  const huiTxs = transactions.filter(t => {
+    const toWalletId = (t.toWalletId || '').trim().toLowerCase();
+    const walletId = (t.walletId || '').trim().toLowerCase();
+    const toWalletName = (t.toWalletName || '').trim().toLowerCase();
+    const walletName = (t.walletName || '').trim().toLowerCase();
+    const note = (t.note || '').trim().toLowerCase();
+    const categoryId = (t.categoryId || '').trim().toLowerCase();
+    const categoryName = (t.categoryName || '').trim().toLowerCase();
+
+    const matchesWallet = 
+      (walletIdLower && (toWalletId === walletIdLower || walletId === walletIdLower)) ||
+      (walletNameLower && (toWalletName === walletNameLower || walletName === walletNameLower || note.includes(walletNameLower)));
+
+    const isHuiCategory = 
+      categoryId === 'hui_contribution' ||
+      categoryName.includes('hụi') ||
+      categoryName.includes('phường') ||
+      categoryName.includes('họ') ||
+      note.includes('hụi') ||
+      note.includes('phường') ||
+      note.includes('họ');
+
+    return matchesWallet && isHuiCategory;
+  });
 
   const txCount = huiTxs.length;
-  const txTotalPaid = huiTxs.reduce((sum, t) => sum + (t.amount || 0), 0);
+  const txTotalPaid = huiTxs.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
 
-  // Tính tổng tiền thực tế đã đóng
-  let totalActualPaid = wallet.huiTotalActualPaid;
-  if (totalActualPaid === undefined || totalActualPaid === null) {
-    totalActualPaid = txTotalPaid > 0 ? txTotalPaid : (wallet.balance || 0);
+  // Tính tổng tiền thực tế đã đóng (kết hợp dữ liệu trực tiếp trong ví + lịch sử giao dịch)
+  let totalActualPaid = Number(wallet.huiTotalActualPaid) || 0;
+  if (txTotalPaid > totalActualPaid) {
+    totalActualPaid = txTotalPaid;
+  }
+  if (totalActualPaid === 0 && Number(wallet.balance) > 0) {
+    totalActualPaid = Number(wallet.balance);
   }
 
-  // Tính số kỳ đã hoàn thành
-  let completedPeriods = wallet.huiCompletedPeriods;
-  if (completedPeriods === undefined || completedPeriods === null || (completedPeriods === 0 && (txCount > 0 || totalActualPaid > 0))) {
-    if (txCount > 0) {
-      completedPeriods = txCount;
-    } else if (dailyQuota > 0 && totalActualPaid > 0) {
-      completedPeriods = Math.floor(totalActualPaid / dailyQuota);
-    } else {
-      completedPeriods = 0;
-    }
+  // Tính số kỳ đã hoàn thành (kết hợp số kỳ trực tiếp + số giao dịch trong lịch sử)
+  let completedPeriods = Number(wallet.huiCompletedPeriods) || 0;
+  if (txCount > completedPeriods) {
+    completedPeriods = txCount;
+  }
+  if (completedPeriods === 0 && dailyQuota > 0 && totalActualPaid > 0) {
+    completedPeriods = Math.floor(totalActualPaid / dailyQuota);
   }
 
-  // 5./ Số tiền chênh lệch giữa định mức và số tiền đóng thực tế: (số kỳ đã đóng * tiền định kỳ) - tiền đã đóng
+  // Số tiền chênh lệch giữa định mức và số tiền đóng thực tế: (số kỳ đã đóng * tiền định kỳ) - tiền đã đóng
   const expectedQuotaSoFar = dailyQuota * completedPeriods;
   const diff = expectedQuotaSoFar - totalActualPaid;
 
-  // 6./ Công thức số tiền thực tế khi ngưng trước hạn
+  // Công thức số tiền thực tế khi ngưng trước hạn
   const remainingPeriods = Math.max(0, totalPeriods - completedPeriods);
   const remainingQuota = dailyQuota * remainingPeriods;
   const finalRealAmount = totalActualPaid + diff - remainingQuota;
