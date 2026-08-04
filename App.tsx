@@ -135,12 +135,12 @@ const App: React.FC = () => {
               return {
                 ...local,
                 ...inc,
-                // Giữ lại và khôi phục thông số hụi nếu Google Sheet chưa/chưa kịp lưu các trường tùy chỉnh
+                // Ưu tiên dữ liệu hụi từ Google Sheet, nếu chưa có trên sheet thì giữ lại từ local
                 huiShareAmount: getNum(inc.huiShareAmount, local.huiShareAmount || 0),
                 huiTotalPeriods: getNum(inc.huiTotalPeriods, local.huiTotalPeriods || 12),
-                huiCompletedPeriods: getNum(inc.huiCompletedPeriods, local.huiCompletedPeriods || 0),
+                huiCompletedPeriods: getNum(inc.huiCompletedPeriods, local.huiCompletedPeriods),
                 huiDailyQuota: getNum(inc.huiDailyQuota, local.huiDailyQuota || 0),
-                huiTotalActualPaid: getNum(inc.huiTotalActualPaid, local.huiTotalActualPaid || 0),
+                huiTotalActualPaid: getNum(inc.huiTotalActualPaid, local.huiTotalActualPaid),
                 huiIsEnded: inc.huiIsEnded !== undefined ? inc.huiIsEnded : local.huiIsEnded,
                 // Giữ lại thông số tiết kiệm
                 startDate: inc.startDate || local.startDate,
