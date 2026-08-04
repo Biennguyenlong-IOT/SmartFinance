@@ -49,9 +49,7 @@ export function getHuiStats(wallet: any, transactions: any[] = []) {
   }
 
   const shareAmount = Number(wallet.huiShareAmount) || 0;
-  const totalPeriods = (wallet.huiTotalPeriods !== undefined && wallet.huiTotalPeriods !== null && Number(wallet.huiTotalPeriods) > 0)
-    ? Number(wallet.huiTotalPeriods)
-    : 12;
+  const totalPeriods = Number(wallet.huiTotalPeriods) || 12;
   const dailyQuota = Number(wallet.huiDailyQuota) || 0;
 
   // Lọc tất cả giao dịch đóng hụi liên quan tới ví này từ lịch sử giao dịch
@@ -63,16 +61,14 @@ export function getHuiStats(wallet: any, transactions: any[] = []) {
     const toWalletId = String(t.toWalletId || '').trim().toLowerCase();
     const walletId = String(t.walletId || '').trim().toLowerCase();
     const toWalletName = String(t.toWalletName || '').trim().toLowerCase();
-    const walletNameStr = String(t.walletName || '').trim().toLowerCase();
+    const walletName = String(t.walletName || '').trim().toLowerCase();
+    const note = String(t.note || '').trim().toLowerCase();
     const categoryId = String(t.categoryId || '').trim().toLowerCase();
     const categoryName = String(t.categoryName || '').trim().toLowerCase();
-    const note = String(t.note || '').trim().toLowerCase();
 
-    // Khớp chính xác ID ví hoặc Tên ví
-    const matchesWalletId = walletIdLower && (toWalletId === walletIdLower || walletId === walletIdLower);
-    const matchesWalletName = walletNameLower && (toWalletName === walletNameLower || walletNameStr === walletNameLower);
-
-    const matchesWallet = matchesWalletId || matchesWalletName;
+    const matchesWallet = 
+      (walletIdLower && (toWalletId === walletIdLower || walletId === walletIdLower)) ||
+      (walletNameLower && (toWalletName === walletNameLower || walletName === walletNameLower || note.includes(walletNameLower)));
 
     const isHuiCategory = 
       categoryId === 'hui_contribution' ||
@@ -89,36 +85,34 @@ export function getHuiStats(wallet: any, transactions: any[] = []) {
   const txCount = huiTxs.length;
   const txTotalPaid = huiTxs.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
 
-  // 1. Số kỳ đã hoàn thành (completedPeriods):
-  // Ưu tiên hàng đầu giá trị đã được lưu trong ví (từ Google Sheet hoặc người dùng lưu trực tiếp)
-  const savedCompleted = (wallet.huiCompletedPeriods !== undefined && wallet.huiCompletedPeriods !== null && wallet.huiCompletedPeriods !== '') 
-    ? Number(wallet.huiCompletedPeriods) 
-    : null;
-
-  let completedPeriods = 0;
-  if (savedCompleted !== null && !isNaN(savedCompleted)) {
-    completedPeriods = savedCompleted;
-  } else if (txCount > 0) {
-    completedPeriods = txCount;
-  } else if (dailyQuota > 0 && Number(wallet.balance) > 0) {
-    completedPeriods = Math.floor(Number(wallet.balance) / dailyQuota);
-  }
-
-  // 2. Tổng tiền thực tế đã đóng (totalActualPaid):
-  // Ưu tiên hàng đầu giá trị đã được lưu trong ví (từ Google Sheet hoặc người dùng lưu trực tiếp)
+  // 1. Xác định Tổng tiền thực tế đã đóng (totalActualPaid):
+  // Lấy tổng từ lịch sử giao dịch Google Sheet/App nếu có (txTotalPaid) kết hợp số tiền lưu trực tiếp (savedActualPaid)
   const savedActualPaid = (wallet.huiTotalActualPaid !== undefined && wallet.huiTotalActualPaid !== null && wallet.huiTotalActualPaid !== '') 
     ? Number(wallet.huiTotalActualPaid) 
-    : null;
+    : 0;
 
   let totalActualPaid = 0;
-  if (savedActualPaid !== null && !isNaN(savedActualPaid)) {
+  if (txTotalPaid > 0) {
+    totalActualPaid = Math.max(txTotalPaid, savedActualPaid);
+  } else if (savedActualPaid > 0) {
     totalActualPaid = savedActualPaid;
-  } else if (txTotalPaid > 0) {
-    totalActualPaid = txTotalPaid;
-  } else if (completedPeriods > 0 && dailyQuota > 0) {
-    totalActualPaid = completedPeriods * dailyQuota;
-  } else {
-    totalActualPaid = Number(wallet.balance) || 0;
+  } else if (Number(wallet.balance) > 0) {
+    totalActualPaid = Number(wallet.balance);
+  }
+
+  // 2. Xác định Số kỳ đã hoàn thành (completedPeriods):
+  // Lấy tổng từ số lượng giao dịch đóng hụi thực tế (txCount) kết hợp số kỳ lưu trực tiếp trong ví (savedCompleted)
+  const savedCompleted = (wallet.huiCompletedPeriods !== undefined && wallet.huiCompletedPeriods !== null && wallet.huiCompletedPeriods !== '') 
+    ? Number(wallet.huiCompletedPeriods) 
+    : 0;
+
+  let completedPeriods = 0;
+  if (txCount > 0) {
+    completedPeriods = Math.max(txCount, savedCompleted);
+  } else if (savedCompleted > 0) {
+    completedPeriods = savedCompleted;
+  } else if (dailyQuota > 0 && totalActualPaid > 0) {
+    completedPeriods = Math.floor(totalActualPaid / dailyQuota);
   }
 
   // Số tiền chênh lệch giữa định mức và số tiền đóng thực tế: (số kỳ đã đóng * tiền định kỳ) - tiền đã đóng
