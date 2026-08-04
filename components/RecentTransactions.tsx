@@ -8,10 +8,9 @@ interface Props {
   categories: Category[];
   wallets: Wallet[];
   onViewAll?: () => void;
-  onDeleteTransaction?: (id: string) => void;
 }
 
-export const RecentTransactions: React.FC<Props> = ({ transactions, categories, wallets, onViewAll, onDeleteTransaction }) => {
+export const RecentTransactions: React.FC<Props> = ({ transactions, categories, wallets, onViewAll }) => {
   const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
 
   // Sắp xếp giao dịch theo ngày mới nhất
@@ -141,26 +140,10 @@ export const RecentTransactions: React.FC<Props> = ({ transactions, categories, 
                               </div>
                             </div>
                           </div>
-                          <div className="flex items-center gap-3 flex-shrink-0 ml-4">
-                            <div className="text-right">
-                              <p className={`font-black text-sm tracking-tight ${isExpense ? 'text-rose-500' : 'text-emerald-500'}`}>
-                                {isExpense ? '-' : '+'}{formatCurrency(t.amount)}<span className="text-[10px] ml-0.5 font-bold">₫</span>
-                              </p>
-                            </div>
-                            {onDeleteTransaction && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (window.confirm(`Bạn có chắc chắn muốn xóa giao dịch "${t.note || 'này'}" (${formatCurrency(t.amount)}₫)?`)) {
-                                    onDeleteTransaction(t.id);
-                                  }
-                                }}
-                                className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-rose-500 p-1.5 transition-all rounded-lg hover:bg-rose-50 text-xs"
-                                title="Xóa giao dịch"
-                              >
-                                🗑️
-                              </button>
-                            )}
+                          <div className="text-right flex-shrink-0 ml-4">
+                            <p className={`font-black text-sm tracking-tight ${isExpense ? 'text-rose-500' : 'text-emerald-500'}`}>
+                              {isExpense ? '-' : '+'}{formatCurrency(t.amount)}<span className="text-[10px] ml-0.5 font-bold">₫</span>
+                            </p>
                           </div>
                         </div>
                       );
