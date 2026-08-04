@@ -111,10 +111,11 @@ const App: React.FC = () => {
   }, []);
 
   const pullDataFromSheet = useCallback(async (silent = false) => {
-    if (!SHEET_URL) return;
+    const url = state.googleSheetUrl || SHEET_URL;
+    if (!url) return;
     if (!silent) setIsFetching(true);
     try {
-      const data = await fetchFromSheet(SHEET_URL);
+      const data = await fetchFromSheet(url);
       if (data && !data.error) {
         setState(prev => {
           let mergedWallets = prev.wallets;
@@ -150,12 +151,16 @@ const App: React.FC = () => {
             });
           }
 
+          const sheetTxs = (Array.isArray(data.transactions) && data.transactions.length > 0)
+            ? deduplicate(data.transactions)
+            : prev.transactions;
+
           return {
             ...prev,
             wallets: mergedWallets,
             categories: (Array.isArray(data.categories) && data.categories.length > 0) ? deduplicate(data.categories) : prev.categories,
             favorites: Array.isArray(data.favorites) ? deduplicate(data.favorites) : prev.favorites,
-            transactions: Array.isArray(data.transactions) ? deduplicate(data.transactions) : prev.transactions,
+            transactions: sheetTxs,
             settingsPassword: data.settingsPassword || prev.settingsPassword || DEFAULT_PASSWORD
           };
         });
@@ -166,7 +171,7 @@ const App: React.FC = () => {
     } finally {
       setIsFetching(false);
     }
-  }, []);
+  }, [state.googleSheetUrl]);
 
   useEffect(() => { pullDataFromSheet(true); }, [pullDataFromSheet]);
 
@@ -174,9 +179,11 @@ const App: React.FC = () => {
     if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
 
     const performSync = async () => {
+      const url = updatedState.googleSheetUrl || SHEET_URL;
+      if (!url) return;
       setIsSyncing(true);
       try {
-        await syncToSheet(SHEET_URL, {
+        await syncToSheet(url, {
           action: 'sync_all',
           wallets: updatedState.wallets,
           categories: updatedState.categories,
@@ -204,25 +211,26 @@ const App: React.FC = () => {
     const id = Math.random().toString(36).substr(2, 9);
     let updatedWallets = [...state.wallets];
     let newTransactions: Transaction[] = [];
+    const addedTxs: Transaction[] = [];
 
     const sourceWallet = state.wallets.find(w => w.id === newT.walletId);
     const targetWallet = newT.toWalletId ? state.wallets.find(w => w.id === newT.toWalletId) : undefined;
 
     if (newT.type === CategoryType.TRANSFER && newT.toWalletId) {
       const outTx: Transaction = { id, amount: newT.amount, categoryId: '12', walletId: newT.walletId, toWalletId: newT.toWalletId, date: paymentDate, note: newT.note || 'Chuyển tiền', type: CategoryType.EXPENSE, icon: '📤', categoryName: 'Chuyển tiền', walletName: sourceWallet?.name, toWalletName: targetWallet?.name };
-      const inTx: Transaction = { id: id + 'in', amount: newT.amount, categoryId: '12', walletId: newT.toWalletId, toWalletId: newT.walletId, date: paymentDate, note: newT.note || 'Nhận tiền', type: CategoryType.INCOME, icon: '📥', categoryName: 'Chuyển tiền', walletName: targetWallet?.name, toWalletName: sourceWallet?.name };
+      const inTx: Transaction = { id: id + 'in', amount: newT.amount, categoryId: '12', walletId: newT.toWalletId, toWalletId: newT.toWalletId, date: paymentDate, note: newT.note || 'Nhận tiền', type: CategoryType.INCOME, icon: '📥', categoryName: 'Chuyển tiền', walletName: targetWallet?.name, toWalletName: sourceWallet?.name };
+      addedTxs.push(outTx, inTx);
       newTransactions = [...state.transactions, outTx, inTx];
       updatedWallets = state.wallets.map(w => {
         if (w.id === newT.walletId) return { ...w, balance: w.balance - newT.amount };
         if (w.id === newT.toWalletId) return { ...w, balance: w.balance + newT.amount };
         return w;
       });
-      await syncToSheet(SHEET_URL, { action: 'add_transaction', transaction: outTx, newBalance: updatedWallets.find(w => w.id === newT.walletId)?.balance });
-      await syncToSheet(SHEET_URL, { action: 'add_transaction', transaction: inTx, newBalance: updatedWallets.find(w => w.id === newT.toWalletId)?.balance });
     } 
     else if (newT.categoryId === '10' && newT.toWalletId) {
       const category = state.categories.find(c => c.id === newT.categoryId);
       const transaction: Transaction = { ...newT, id, date: paymentDate, categoryName: category?.name, walletName: sourceWallet?.name, toWalletName: targetWallet?.name };
+      addedTxs.push(transaction);
       newTransactions = [...state.transactions, transaction];
       
       updatedWallets = state.wallets.map(w => {
@@ -230,16 +238,11 @@ const App: React.FC = () => {
         if (w.id === newT.toWalletId) return { ...w, balance: w.balance - transaction.amount };
         return w;
       });
-
-      await syncToSheet(SHEET_URL, { action: 'add_transaction', transaction, newBalance: updatedWallets.find(w => w.id === transaction.walletId)?.balance });
-      const debtW = updatedWallets.find(w => w.id === newT.toWalletId);
-      if (debtW) {
-        await syncToSheet(SHEET_URL, { action: 'update_wallet_balance', walletId: debtW.id, balance: debtW.balance });
-      }
     } 
     else {
       const category = state.categories.find(c => c.id === newT.categoryId);
       const transaction: Transaction = { ...newT, id, date: paymentDate, categoryName: category?.name, walletName: sourceWallet?.name };
+      addedTxs.push(transaction);
       newTransactions = [...state.transactions, transaction];
 
       updatedWallets = state.wallets.map(w => {
@@ -253,50 +256,166 @@ const App: React.FC = () => {
         }
         return { ...w, balance: newBalance };
       });
-
-      await syncToSheet(SHEET_URL, { action: 'add_transaction', transaction, newBalance: updatedWallets.find(w => w.id === transaction.walletId)?.balance });
     }
 
-    setState(prev => ({ ...prev, transactions: newTransactions, wallets: updatedWallets }));
+    const updatedState = {
+      ...state,
+      transactions: newTransactions,
+      wallets: updatedWallets
+    };
+
+    setState(updatedState);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedState));
     setActiveTab('dashboard');
+
+    const sheetUrl = state.googleSheetUrl || SHEET_URL;
+    if (sheetUrl) {
+      setIsSyncing(true);
+      try {
+        // 1. Thử gửi action add_transaction cho từng giao dịch
+        for (const tx of addedTxs) {
+          await syncToSheet(sheetUrl, { 
+            action: 'add_transaction', 
+            transaction: tx, 
+            newBalance: updatedWallets.find(w => w.id === tx.walletId)?.balance 
+          });
+        }
+        // 2. Gửi action sync_all đồng bộ toàn bộ mảng giao dịch và ví lên Google Sheet
+        await syncToSheet(sheetUrl, {
+          action: 'sync_all',
+          wallets: updatedWallets,
+          categories: state.categories,
+          favorites: state.favorites,
+          settingsPassword: state.settingsPassword,
+          transactions: newTransactions
+        });
+        setLastSynced(new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }));
+      } catch (err) {
+        console.error("Lỗi đồng bộ giao dịch lên Google Sheet:", err);
+      } finally {
+        setIsSyncing(false);
+      }
+    }
+  };
+
+  const deleteTransaction = async (transactionId: string) => {
+    const targetTx = state.transactions.find(t => t.id === transactionId);
+    if (!targetTx) return;
+
+    const updatedWallets = state.wallets.map(w => {
+      if (w.id === targetTx.walletId) {
+        const isDebt = isDebtWallet(w);
+        let newBalance = w.balance;
+        if (targetTx.type === CategoryType.EXPENSE) {
+          newBalance = isDebt ? w.balance - targetTx.amount : w.balance + targetTx.amount;
+        } else {
+          newBalance = isDebt ? w.balance + targetTx.amount : w.balance - targetTx.amount;
+        }
+        return { ...w, balance: newBalance };
+      }
+      if (targetTx.toWalletId && w.id === targetTx.toWalletId) {
+        let newBalance = w.balance;
+        if (targetTx.type === CategoryType.EXPENSE) {
+          newBalance = w.balance - targetTx.amount;
+        } else {
+          newBalance = w.balance + targetTx.amount;
+        }
+        return { ...w, balance: newBalance };
+      }
+      return w;
+    });
+
+    const newTransactions = state.transactions.filter(t => t.id !== transactionId);
+    const updatedState = {
+      ...state,
+      wallets: updatedWallets,
+      transactions: newTransactions
+    };
+
+    setState(updatedState);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedState));
+
+    const sheetUrl = state.googleSheetUrl || SHEET_URL;
+    if (sheetUrl) {
+      setIsSyncing(true);
+      try {
+        await syncToSheet(sheetUrl, {
+          action: 'sync_all',
+          wallets: updatedWallets,
+          categories: state.categories,
+          favorites: state.favorites,
+          settingsPassword: state.settingsPassword,
+          transactions: newTransactions
+        });
+        setLastSynced(new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }));
+      } catch (err) {
+        console.error("Lỗi đồng bộ xóa giao dịch:", err);
+      } finally {
+        setIsSyncing(false);
+      }
+    }
   };
 
   const handleBorrow = async (amount: number, targetWalletId: string, note: string) => {
     if (!borrowingFromDebtWallet) return;
 
-    const borrowTx: Omit<Transaction, 'id'> = {
+    const sourceWallet = state.wallets.find(w => w.id === targetWalletId);
+    const paymentDate = new Date().toISOString();
+    const id = Math.random().toString(36).substr(2, 9);
+
+    const borrowTx: Transaction = {
+      id,
       amount,
-      date: new Date().toISOString(),
+      date: paymentDate,
       note,
-      type: CategoryType.INCOME, // Vay thêm là tiền đổ vào ví tài sản
-      categoryId: 'borrowing', // ID đặc biệt cho vay mượn
+      type: CategoryType.INCOME,
+      categoryId: 'borrowing',
       categoryName: 'Vay thêm',
-      walletId: targetWalletId, // Ví nhận tiền
-      walletName: state.wallets.find(w => w.id === targetWalletId)?.name || '',
+      walletId: targetWalletId,
+      walletName: sourceWallet?.name || '',
       icon: '💸'
     };
 
-    // 1. Cập nhật ví nhận tiền (Tăng tài sản)
-    await addTransaction(borrowTx);
+    const newTransactions = [...state.transactions, borrowTx];
 
-    // 2. Cập nhật ví nợ (Tăng nợ)
     const updatedWallets = state.wallets.map(w => {
+      if (w.id === targetWalletId) {
+        return { ...w, balance: w.balance + amount };
+      }
       if (w.id === borrowingFromDebtWallet.id) {
         return { ...w, balance: w.balance + amount };
       }
       return w;
     });
 
-    setState(prev => ({ ...prev, wallets: updatedWallets }));
+    const updatedState = {
+      ...state,
+      transactions: newTransactions,
+      wallets: updatedWallets
+    };
+
+    setState(updatedState);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedState));
     setBorrowingFromDebtWallet(null);
-    
-    // Đồng bộ ví nợ lên sheet
-    if (state.googleSheetUrl) {
-      await syncToSheet(state.googleSheetUrl, {
-        action: 'update_wallet_balance',
-        walletId: borrowingFromDebtWallet.id,
-        balance: borrowingFromDebtWallet.balance + amount
-      });
+
+    const sheetUrl = state.googleSheetUrl || SHEET_URL;
+    if (sheetUrl) {
+      setIsSyncing(true);
+      try {
+        await syncToSheet(sheetUrl, {
+          action: 'sync_all',
+          wallets: updatedWallets,
+          categories: state.categories,
+          favorites: state.favorites,
+          settingsPassword: state.settingsPassword,
+          transactions: newTransactions
+        });
+        setLastSynced(new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }));
+      } catch (err) {
+        console.error("Lỗi đồng bộ vay thêm lên Google Sheet:", err);
+      } finally {
+        setIsSyncing(false);
+      }
     }
   };
 
@@ -304,42 +423,65 @@ const App: React.FC = () => {
     if (!lendingActionWallet) return;
     const { wallet: lendingWallet, mode } = lendingActionWallet;
 
-    const tx: Omit<Transaction, 'id'> = {
+    const sourceWallet = state.wallets.find(w => w.id === otherWalletId);
+    const paymentDate = new Date().toISOString();
+    const id = Math.random().toString(36).substr(2, 9);
+
+    const tx: Transaction = {
+      id,
       amount,
-      date: new Date().toISOString(),
+      date: paymentDate,
       note,
       type: mode === 'collect' ? CategoryType.INCOME : CategoryType.EXPENSE,
       categoryId: mode === 'collect' ? 'collect_debt' : 'lending_out',
       categoryName: mode === 'collect' ? 'Thu hồi nợ' : 'Cho vay',
-      walletId: otherWalletId, // Ví thực hiện giao dịch (nhận tiền hoặc bỏ tiền ra)
-      walletName: state.wallets.find(w => w.id === otherWalletId)?.name || '',
+      walletId: otherWalletId,
+      walletName: sourceWallet?.name || '',
       icon: mode === 'collect' ? '💰' : '🤝'
     };
 
-    // 1. Cập nhật ví thực hiện giao dịch (Tài sản thực tế)
-    await addTransaction(tx);
+    const newTransactions = [...state.transactions, tx];
 
-    // 2. Cập nhật ví cho vay (Tài sản ghi nhận)
     const updatedWallets = state.wallets.map(w => {
+      if (w.id === otherWalletId) {
+        const isExpense = mode !== 'collect';
+        return { ...w, balance: isExpense ? w.balance - amount : w.balance + amount };
+      }
       if (w.id === lendingWallet.id) {
-        // Nếu thu hồi thì giảm số dư ví cho vay, nếu cho vay thêm thì tăng
         const newBalance = mode === 'collect' ? w.balance - amount : w.balance + amount;
         return { ...w, balance: newBalance };
       }
       return w;
     });
 
-    setState(prev => ({ ...prev, wallets: updatedWallets }));
+    const updatedState = {
+      ...state,
+      transactions: newTransactions,
+      wallets: updatedWallets
+    };
+
+    setState(updatedState);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedState));
     setLendingActionWallet(null);
-    
-    // Đồng bộ ví cho vay lên sheet
-    if (state.googleSheetUrl) {
-      const finalBalance = updatedWallets.find(w => w.id === lendingWallet.id)?.balance || 0;
-      await syncToSheet(state.googleSheetUrl, {
-        action: 'update_wallet_balance',
-        walletId: lendingWallet.id,
-        balance: finalBalance
-      });
+
+    const sheetUrl = state.googleSheetUrl || SHEET_URL;
+    if (sheetUrl) {
+      setIsSyncing(true);
+      try {
+        await syncToSheet(sheetUrl, {
+          action: 'sync_all',
+          wallets: updatedWallets,
+          categories: state.categories,
+          favorites: state.favorites,
+          settingsPassword: state.settingsPassword,
+          transactions: newTransactions
+        });
+        setLastSynced(new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }));
+      } catch (err) {
+        console.error("Lỗi đồng bộ cho vay / thu nợ lên Google Sheet:", err);
+      } finally {
+        setIsSyncing(false);
+      }
     }
   };
 
@@ -702,7 +844,7 @@ const App: React.FC = () => {
               onHuiClick={(wallet, mode) => setViewingHuiWallet({ wallet, mode })}
             />
             <ExpenseCharts transactions={state.transactions} categories={state.categories} />
-            <RecentTransactions transactions={state.transactions} categories={state.categories} wallets={state.wallets} onViewAll={() => setActiveTab('history')} />
+            <RecentTransactions transactions={state.transactions} categories={state.categories} wallets={state.wallets} onViewAll={() => setActiveTab('history')} onDeleteTransaction={deleteTransaction} />
           </div>
         )}
         {activeTab === 'input' && (
@@ -729,7 +871,7 @@ const App: React.FC = () => {
             />
           </div>
         )}
-        {activeTab === 'history' && <RecentTransactions transactions={state.transactions} categories={state.categories} wallets={state.wallets} />}
+        {activeTab === 'history' && <RecentTransactions transactions={state.transactions} categories={state.categories} wallets={state.wallets} onDeleteTransaction={deleteTransaction} />}
         {activeTab === 'settings' && (
           <div className="max-w-3xl mx-auto">
              {!isUnlocked ? (
