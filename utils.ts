@@ -85,22 +85,30 @@ export function getHuiStats(wallet: any, transactions: any[] = []) {
   const txCount = huiTxs.length;
   const txTotalPaid = huiTxs.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
 
-  // Lấy tổng tiền thực tế đã đóng (ưu tiên số liệu người dùng lưu/sửa trong ví)
+  // 1. Xác định Tổng tiền thực tế đã đóng (totalActualPaid):
+  // Ưu tiên số tiền tổng hợp từ lịch sử giao dịch Google Sheet/App nếu có giao dịch (txTotalPaid > 0)
+  // hoặc số tiền người dùng nhập/sửa trực tiếp trong ví (wallet.huiTotalActualPaid)
   let totalActualPaid = 0;
-  if (wallet.huiTotalActualPaid !== undefined && wallet.huiTotalActualPaid !== null) {
-    totalActualPaid = Number(wallet.huiTotalActualPaid) || 0;
-  } else if (txTotalPaid > 0) {
-    totalActualPaid = txTotalPaid;
+  const savedActualPaid = (wallet.huiTotalActualPaid !== undefined && wallet.huiTotalActualPaid !== null && wallet.huiTotalActualPaid !== '') ? Number(wallet.huiTotalActualPaid) : null;
+
+  if (txTotalPaid > 0) {
+    totalActualPaid = savedActualPaid !== null ? Math.max(txTotalPaid, savedActualPaid) : txTotalPaid;
+  } else if (savedActualPaid !== null && savedActualPaid > 0) {
+    totalActualPaid = savedActualPaid;
   } else {
     totalActualPaid = Number(wallet.balance) || 0;
   }
 
-  // Lấy số kỳ đã hoàn thành (ưu tiên số kỳ người dùng lưu/sửa trực tiếp trong ví)
+  // 2. Xác định Số kỳ đã hoàn thành (completedPeriods):
+  // Ưu tiên tính từ số lượng giao dịch đóng hụi thực tế trong lịch sử Google Sheet/App (txCount)
+  // hoặc số kỳ người dùng sửa/nhập trực tiếp (wallet.huiCompletedPeriods)
   let completedPeriods = 0;
-  if (wallet.huiCompletedPeriods !== undefined && wallet.huiCompletedPeriods !== null) {
-    completedPeriods = Number(wallet.huiCompletedPeriods) || 0;
-  } else if (txCount > 0) {
-    completedPeriods = txCount;
+  const savedCompleted = (wallet.huiCompletedPeriods !== undefined && wallet.huiCompletedPeriods !== null && wallet.huiCompletedPeriods !== '') ? Number(wallet.huiCompletedPeriods) : null;
+
+  if (txCount > 0) {
+    completedPeriods = savedCompleted !== null ? Math.max(txCount, savedCompleted) : txCount;
+  } else if (savedCompleted !== null && savedCompleted >= 0) {
+    completedPeriods = savedCompleted;
   } else if (dailyQuota > 0 && totalActualPaid > 0) {
     completedPeriods = Math.floor(totalActualPaid / dailyQuota);
   }
